@@ -77,7 +77,11 @@ async function fetchApiData(url: string): Promise<unknown> {
     try {
         response = await fetch(url, {
             signal: AbortSignal.timeout(REQUEST_TIMEOUT),
-            next: { revalidate: 60 },
+            cache: "no-store",
+            headers: {
+                Accept: "application/json",
+                "User-Agent": "Mozilla/5.0",
+            },
         });
     } catch (error) {
         if (error instanceof Error && error.name === "TimeoutError") {
