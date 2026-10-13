@@ -16,7 +16,11 @@ type ApiProduct = {
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value)
+    );
 }
 
 function isApiProduct(value: unknown): value is ApiProduct {
@@ -31,14 +35,26 @@ function isApiProduct(value: unknown): value is ApiProduct {
         typeof value.price === "number" &&
         Number.isFinite(value.price) &&
         typeof value.image === "string" &&
-        (rating === undefined ||
-            (isRecord(rating) &&
-                (rating.rate === undefined ||
-                    (typeof rating.rate === "number" &&
-                        Number.isFinite(rating.rate))) &&
-                (rating.count === undefined ||
-                    (typeof rating.count === "number" &&
-                        Number.isFinite(rating.count)))))
+        (
+            rating === undefined ||
+            (
+                isRecord(rating) &&
+                (
+                    rating.rate === undefined ||
+                    (
+                        typeof rating.rate === "number" &&
+                        Number.isFinite(rating.rate)
+                    )
+                ) &&
+                (
+                    rating.count === undefined ||
+                    (
+                        typeof rating.count === "number" &&
+                        Number.isFinite(rating.count)
+                    )
+                )
+            )
+        )
     );
 }
 
@@ -74,14 +90,26 @@ async function fetchApiData(url: string): Promise<unknown> {
             throw new Error("The product request was cancelled.");
         }
 
+        console.error("Product API connection failed:", error);
+
         throw new Error(
-            "Unable to connect to the product service. Please check your connection and try again."
+            "Unable to connect to the product service. Please try again later."
         );
     }
 
     if (!response.ok) {
+        console.error(
+            `Product API request failed: ${response.status} ${response.statusText}`
+        );
+
         if (response.status === 404) {
             throw new Error("Product not found.");
+        }
+
+        if (response.status === 403) {
+            throw new Error(
+                "The product service denied the request (403 Forbidden). Please try again later."
+            );
         }
 
         throw new Error(
@@ -93,7 +121,7 @@ async function fetchApiData(url: string): Promise<unknown> {
         return await response.json();
     } catch {
         throw new Error(
-            "The product service returned an invalid response. Please try again later."
+            "The product service returned an invalid response."
         );
     }
 }
@@ -110,9 +138,7 @@ export async function getProducts(): Promise<Product[]> {
     return data.map(mapApiProduct);
 }
 
-export async function getProductById(
-    id: string
-): Promise<Product> {
+export async function getProductById(id: string): Promise<Product> {
     if (!/^\d+$/.test(id)) {
         throw new Error("Invalid product ID.");
     }
