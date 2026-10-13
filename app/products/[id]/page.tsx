@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getProductById } from "@/lib/api";
+import { products } from "@/data/products";
 import { getProductStock } from "@/lib/stock";
 import AddToCartButton from "@/components/AddToCartButton";
 
@@ -15,29 +15,26 @@ export default async function ProductDetailsPage({
 }: ProductPageProps) {
     const { id } = await params;
 
-    // Invalid product IDs should show the Not Found page.
+    // Validate the product ID.
     if (!/^\d+$/.test(id)) {
         notFound();
     }
 
-    // Only a genuinely missing product should show Not Found.
-    // Other API failures should reach the error boundary.
-    const product = await getProductById(id).catch((error: unknown) => {
-        if (
-            error instanceof Error &&
-            error.message === "Product not found."
-        ) {
-            notFound();
-        }
+    // Load the product from local data.
+    const product = products.find(
+        (item) => item.id === Number(id)
+    );
 
-        throw error;
-    });
+    // Show the Not Found page for an unknown product.
+    if (!product) {
+        notFound();
+    }
 
     const stock = getProductStock(product.id);
     const outOfStock = stock <= 0;
 
     const formatPrice = (price: number) =>
-        `₹${price.toLocaleString("en-IN")}`;
+        `₹${price.toLocaleString("en-IN")} `;
 
     return (
         <main className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6">
@@ -50,7 +47,7 @@ export default async function ProductDetailsPage({
                 </Link>
 
                 <div className="grid grid-cols-1 gap-8 rounded-2xl bg-white p-5 shadow-sm md:grid-cols-2 md:gap-12 md:p-8">
-                    {/* Product image */}
+                    {/* Product Image */}
                     <div className="relative flex min-h-80 items-center justify-center rounded-xl bg-gray-100 p-6">
                         <div className="relative h-80 w-full">
                             <Image
@@ -64,7 +61,7 @@ export default async function ProductDetailsPage({
                         </div>
                     </div>
 
-                    {/* Product details */}
+                    {/* Product Details */}
                     <div className="flex flex-col">
                         <p className="text-sm capitalize text-gray-500">
                             {product.category}
@@ -91,24 +88,24 @@ export default async function ProductDetailsPage({
                         </div>
 
                         <p
-                            className={`mt-5 font-medium ${outOfStock
+                            className={`mt - 5 font - medium ${outOfStock
                                     ? "text-red-600"
                                     : stock <= 3
                                         ? "text-orange-600"
                                         : "text-green-700"
-                                }`}
+                                } `}
                         >
                             {outOfStock
                                 ? "Out of stock"
                                 : stock <= 3
                                     ? `Only ${stock} left in stock`
-                                    : `In stock (${stock} available)`}
+                                    : `In stock(${stock} available)`}
                         </p>
 
                         <p className="mt-5 leading-7 text-gray-600">
-                            Browse this product in our online store. Check the
-                            price, availability, and customer rating before
-                            adding it to your cart.
+                            Browse this product in our online store.
+                            Check the price, availability, and customer
+                            rating before adding it to your cart.
                         </p>
 
                         <div className="mt-6">
