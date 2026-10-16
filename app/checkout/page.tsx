@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
+import { createClient } from "@/lib/supabase/client";
 
 export default function CheckoutPage() {
+    const [isPlacingOrder, setIsPlacingOrder] = useState(false);
     const router = useRouter();
 
     const { cartItems, clearCart, cartTotal } = useCart();
@@ -38,7 +40,10 @@ export default function CheckoutPage() {
     const formatPrice = (price: number) =>
         `₹${price.toLocaleString("en-IN")}`;
 
-    const handlePlaceOrder = () => {
+
+    const handlePlaceOrder = async () => {
+        if (isPlacingOrder) return;
+
         if (cartItems.length === 0) {
             setError("Your cart is empty. Please add a product first.");
             return;
@@ -79,15 +84,108 @@ export default function CheckoutPage() {
             return;
         }
 
-        if (!paymentMethod) {
-            setError("Please select a payment method.");
+        if (!["cod", "upi", "card"].includes(paymentMethod)) {
+            setError("Please select a valid payment method.");
             return;
         }
 
         setError("");
-        clearCart();
-        router.push("/order-success");
+        setIsPlacingOrder(true);
+
+        try {
+            const supabase = createClient();
+
+            const {
+                data: { user },
+                error: authError,
+            } = await supabase.auth.getUser();
+
+            if (authError || !user) {
+                setError("Please log in before placing your order.");
+                return;
+            }
+
+            const subtotal = Number(cartTotal.toFixed(2));
+
+            const shippingAddress = [
+                formData.address.trim(),
+                formData.city.trim(),
+                formData.state.trim(),
+                formData.pinCode.trim(),
+            ].join(", ");
+
+            const { data: order, error: orderError } = await supabase
+                .from("orders")
+                .insert({
+                    user_id: user.id,
+                    status: "pending",
+                    currency: "INR",
+                    subtotal,
+                    total: subtotal,
+                    shipping_name: formData.fullName.trim(),
+                    shipping_email: formData.email.trim(),
+                    shipping_phone: formData.phone,
+                    shipping_address: shippingAddress,
+                    payment_method: paymentMethod,
+                    payment_status: "unpaid",
+                })
+                .select("id")
+                .single();
+
+            if (orderError || !order) {
+                throw new Error(
+                    orderError?.message || "Could not create your order."
+                );
+            }
+
+            const orderItems = cartItems.map((item) => ({
+                order_id: order.id,
+                product_id: String(item.id),
+                product_name: item.name,
+                image_url:
+                    "image" in item && typeof item.image === "string"
+                        ? item.image
+                        : null,
+                quantity: item.quantity,
+                unit_price: Number(item.price.toFixed(2)),
+                line_total: Number(
+                    (item.price * item.quantity).toFixed(2)
+                ),
+            }));
+
+            const { error: itemsError } = await supabase
+                .from("order_items")
+                .insert(orderItems);
+
+            if (itemsError) {
+                // Remove the incomplete order if saving its items fails.
+                // This cleanup requires a matching DELETE RLS policy.
+                await supabase
+                    .from("orders")
+                    .delete()
+                    .eq("id", order.id)
+                    .eq("user_id", user.id);
+
+                throw new Error(
+                    `Order items could not be saved: ${itemsError.message}`
+                );
+            }
+
+            clearCart();
+            router.push("/order-success");
+        } catch (error) {
+            console.error("Checkout failed:", error);
+
+            setError(
+                error instanceof Error
+                    ? error.message
+                    : "Something went wrong while placing your order."
+            );
+        } finally {
+            setIsPlacingOrder(false);
+        }
     };
+
 
     if (cartItems.length === 0) {
         return (
@@ -304,8 +402,8 @@ export default function CheckoutPage() {
                                     <label
                                         key={method.value}
                                         className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition sm:p-4 ${paymentMethod === method.value
-                                                ? "border-black bg-gray-50"
-                                                : "border-gray-200 hover:bg-gray-50"
+                                            ? "border-black bg-gray-50"
+                                            : "border-gray-200 hover:bg-gray-50"
                                             }`}
                                     >
                                         <input
@@ -376,9 +474,12 @@ export default function CheckoutPage() {
                         <button
                             type="button"
                             onClick={handlePlaceOrder}
-                            className="w-full rounded-lg bg-black px-4 py-3.5 font-semibold text-white transition hover:bg-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black sm:py-4"
+                            disabled={isPlacingOrder}
+                            className="w-full rounded-lg bg-black px-4 py-3.5 font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black sm:py-4"
                         >
-                            Place Order · {formatPrice(cartTotal)}
+                            {isPlacingOrder
+                                ? "Placing Order..."
+                                : `Place Order · ${formatPrice(cartTotal)}`}
                         </button>
 
                         <p className="mt-3 text-center text-xs leading-5 text-gray-500">
