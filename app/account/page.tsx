@@ -326,7 +326,7 @@ export default function AccountPage() {
                     <article className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                         <div className="flex items-center justify-between gap-3">
                             <p className="text-sm font-medium text-gray-600">
-                                Total ordered
+                                Total order value
                             </p>
                             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-lg">
                                 ₹
@@ -497,12 +497,22 @@ export default function AccountPage() {
                                                             alt={item.product_name}
                                                             loading="lazy"
                                                             className="h-full w-full object-contain p-1"
+                                                            onError={(event) => {
+                                                                event.currentTarget.style.display = "none";
+                                                                const fallback = event.currentTarget.nextElementSibling;
+                                                                if (fallback instanceof HTMLElement) {
+                                                                    fallback.style.display = "inline";
+                                                                }
+                                                            }}
                                                         />
-                                                    ) : (
-                                                        <span className="text-2xl" aria-hidden="true">
-                                                            📦
-                                                        </span>
-                                                    )}
+                                                    ) : null}
+                                                    <span
+                                                        className="text-2xl"
+                                                        aria-hidden="true"
+                                                        style={{ display: item.image_url ? "none" : "inline" }}
+                                                    >
+                                                        📦
+                                                    </span>
                                                 </div>
 
                                                 <div className="min-w-0 flex-1">
@@ -538,8 +548,8 @@ export default function AccountPage() {
                                                 Payment status:{" "}
                                                 <span
                                                     className={`font-semibold capitalize ${order.payment_status.toLowerCase() === "paid"
-                                                            ? "text-green-700"
-                                                            : "text-gray-900"
+                                                        ? "text-green-700"
+                                                        : "text-gray-900"
                                                         }`}
                                                 >
                                                     {formatStatus(order.payment_status)}
@@ -561,15 +571,6 @@ export default function AccountPage() {
                         <span aria-hidden="true">←</span>
                         Continue shopping
                     </Link>
-
-                    <button
-                        type="button"
-                        onClick={handleLogout}
-                        disabled={loggingOut}
-                        className="text-sm font-medium text-gray-500 hover:text-gray-900 disabled:opacity-50"
-                    >
-                        {loggingOut ? "Logging out..." : "Log out"}
-                    </button>
                 </div>
             </div>
         </main>
