@@ -4,6 +4,7 @@ import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
 import { WishlistProvider } from "@/context/WishlistContext";
 import { ToastProvider } from "@/context/ToastContext";
+import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
   title: "Amazon Product Listing",
@@ -22,6 +23,7 @@ export default function RootLayout({
         <ToastProvider>
           <CartProvider>
             <WishlistProvider>
+              <Navbar />
               {children}
             </WishlistProvider>
           </CartProvider>

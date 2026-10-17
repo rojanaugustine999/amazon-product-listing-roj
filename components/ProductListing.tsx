@@ -180,73 +180,7 @@ export default function ProductListing({
         <main className="min-h-screen overflow-x-hidden bg-gray-50">
             <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
                 {/* Header and customer authentication */}
-                <header className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
-                    <Link
-                        href="/"
-                        className="w-fit text-2xl font-bold leading-tight text-gray-950 sm:text-3xl"
-                    >
-                        Amazon Product Listing
-                    </Link>
 
-                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                        {!authLoading && (
-                            userEmail ? (
-                                <>
-                                    <Link
-                                        href="/account"
-                                        className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-100 sm:px-4"
-                                    >
-                                        My Account
-                                    </Link>
-
-                                    <button
-                                        type="button"
-                                        onClick={handleLogout}
-                                        disabled={loggingOut}
-                                        className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
-                                    >
-                                        {loggingOut ? "Logging out..." : "Logout"}
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <Link
-                                        href="/login"
-                                        className="inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-100 sm:px-4"
-                                    >
-                                        Login
-                                    </Link>
-
-                                    <Link
-                                        href="/register"
-                                        className="inline-flex items-center justify-center rounded-full bg-black px-3 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 sm:px-4"
-                                    >
-                                        Register
-                                    </Link>
-                                </>
-                            )
-                        )}
-
-                        <Link
-                            href="/wishlist"
-                            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-gray-900 shadow-sm transition hover:border-red-300 hover:bg-red-50 sm:px-4"
-                        >
-                            <span className="text-lg leading-none text-red-600">
-                                ♥
-                            </span>
-
-                            <span>Wishlist</span>
-
-                            <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700">
-                                {wishlistItems.length}
-                            </span>
-                        </Link>
-
-                        <div className="shrink-0">
-                            <CartButton />
-                        </div>
-                    </div>
-                </header>
 
                 {/* Search */}
                 <div className="mb-5 sm:mb-6">
