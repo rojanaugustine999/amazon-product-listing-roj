@@ -68,7 +68,7 @@ export default function Navbar() {
                     href="/"
                     className="text-xl font-bold text-gray-900 sm:text-2xl"
                 >
-                    Amazon Product Listing
+                    Amazon
                 </Link>
 
                 <nav
