@@ -80,7 +80,9 @@ export default function AccountPage() {
 
             const combinedOrders: Order[] = savedOrders.map((order) => ({
                 ...order,
-                items: items.filter((item) => item.order_id === order.id),
+                items: items
+                    .filter((item) => item.order_id === order.id)
+                    .map(({ order_id: _orderId, ...item }) => item),
             }));
 
             setOrders(combinedOrders);
@@ -99,37 +101,54 @@ export default function AccountPage() {
         let active = true;
 
         async function loadAccount() {
-            const { data, error: authError } = await supabase.auth.getUser();
+            try {
+                const { data, error: authError } =
+                    await supabase.auth.getUser();
 
-            if (!active) return;
+                if (!active) return;
 
-            if (authError || !data.user) {
-                router.replace("/login?next=%2Faccount");
-                router.refresh();
-                return;
-            }
+                if (authError || !data.user) {
+                    router.replace("/login?next=%2Faccount");
+                    router.refresh();
+                    return;
+                }
 
-            setUser(data.user);
+                setUser(data.user);
 
-            const { data: profile, error: profileError } = await supabase
-                .from("profiles")
-                .select("full_name")
-                .eq("id", data.user.id)
-                .maybeSingle();
+                const { data: profile, error: profileError } = await supabase
+                    .from("profiles")
+                    .select("full_name")
+                    .eq("id", data.user.id)
+                    .maybeSingle();
 
-            if (!active) return;
+                if (!active) return;
 
-            if (profileError) {
-                setError("Unable to load your profile. Please try again.");
-            } else {
+                if (profileError) {
+                    console.error("Failed to load profile:", profileError);
+                    setError(
+                        "Your account loaded, but your profile details could not be retrieved."
+                    );
+                }
+
                 setFullName(
                     profile?.full_name ||
                     String(data.user.user_metadata?.full_name ?? "")
                 );
-            }
 
-            setLoading(false);
-            await loadOrders(data.user.id);
+                setLoading(false);
+
+                await loadOrders(data.user.id);
+            } catch (err) {
+                console.error("Failed to load account:", err);
+
+                if (active) {
+                    setError(
+                        "Unable to load your account. Please refresh the page."
+                    );
+                    setLoading(false);
+                    setOrdersLoading(false);
+                }
+            }
         }
 
         void loadAccount();
@@ -145,47 +164,92 @@ export default function AccountPage() {
         setLoggingOut(true);
         setError("");
 
-        const supabase = createClient();
-        const { error: logoutError } = await supabase.auth.signOut();
+        try {
+            const supabase = createClient();
+            const { error: logoutError } = await supabase.auth.signOut();
 
-        if (logoutError) {
+            if (logoutError) throw logoutError;
+
+            router.replace("/login");
+            router.refresh();
+        } catch (err) {
+            console.error("Failed to log out:", err);
             setError("Unable to log out. Please try again.");
             setLoggingOut(false);
-            return;
         }
-
-        router.replace("/login");
-        router.refresh();
     }
 
-    function formatPrice(amount: number, currency: string) {
-        return new Intl.NumberFormat("en-IN", {
-            style: "currency",
-            currency: currency || "INR",
-            maximumFractionDigits: 2,
-        }).format(Number(amount) || 0);
+    function formatPrice(amount: number, currencyCode: string) {
+        const safeCurrency = /^[A-Z]{3}$/.test(currencyCode)
+            ? currencyCode
+            : "INR";
+
+        try {
+            return new Intl.NumberFormat("en-IN", {
+                style: "currency",
+                currency: safeCurrency,
+                maximumFractionDigits: 2,
+            }).format(Number(amount) || 0);
+        } catch {
+            return `₹${(Number(amount) || 0).toLocaleString("en-IN")}`;
+        }
     }
 
     function formatStatus(status: string) {
-        return status.replace(/[_-]/g, " ");
+        return status
+            .replace(/[_-]/g, " ")
+            .replace(/\b\w/g, (letter) => letter.toUpperCase());
     }
 
     function getStatusStyle(status: string) {
-        const value = status.toLowerCase();
+        const value = status.toLowerCase().replace(/[_-]/g, " ");
 
         if (
-            value.includes("paid") ||
-            value.includes("complete") ||
-            value.includes("delivered") ||
-            value.includes("success")
+            [
+                "paid",
+                "delivered",
+                "completed",
+                "complete",
+                "success",
+            ].some((item) => value.includes(item))
         ) {
             return "bg-green-50 text-green-700 ring-green-200";
         }
 
         if (
-            value.includes("cancel") ||
-            value.includes("fail") ||
-            value.includes("refund")
+            ["cancelled", "canceled", "failed", "refunded"].some((item) =>
+                value.includes(item)
+            )
+        ) {
+            return "bg-red-50 text-red-700 ring-red-200";
+        }
+
+        if (
+            ["shipped", "processing"].some((item) =>
+                value.includes(item)
+            )
+        ) {
+            return "bg-blue-50 text-blue-700 ring-blue-200";
+        }
+
+        return "bg-amber-50 text-amber-800 ring-amber-200";
+    }
+
+    function getPaymentStatusStyle(status: string) {
+        const value = status.toLowerCase().replace(/[_-]/g, " ");
+
+        if (value === "paid" || value === "succeeded") {
+            return "bg-green-50 text-green-700 ring-green-200";
+        }
+
+        if (value === "refunded") {
+            return "bg-purple-50 text-purple-700 ring-purple-200";
+        }
+
+        if (
+            value === "failed" ||
+            value === "cancelled" ||
+            value === "canceled"
         ) {
             return "bg-red-50 text-red-700 ring-red-200";
         }
@@ -210,7 +274,6 @@ export default function AccountPage() {
     );
 
     const latestOrder = orders[0];
-
     const currency = orders[0]?.currency || "INR";
 
     if (loading) {
@@ -218,12 +281,15 @@ export default function AccountPage() {
             <main className="min-h-[60vh] bg-gray-50 px-4 py-16">
                 <div className="mx-auto max-w-5xl animate-pulse space-y-5">
                     <div className="h-9 w-48 rounded-lg bg-gray-200" />
+
                     <div className="h-36 rounded-2xl bg-white shadow-sm" />
+
                     <div className="grid gap-4 sm:grid-cols-3">
                         <div className="h-28 rounded-2xl bg-white shadow-sm" />
                         <div className="h-28 rounded-2xl bg-white shadow-sm" />
                         <div className="h-28 rounded-2xl bg-white shadow-sm" />
                     </div>
+
                     <div className="h-56 rounded-2xl bg-white shadow-sm" />
                 </div>
             </main>
@@ -239,9 +305,11 @@ export default function AccountPage() {
                         <p className="text-sm font-medium text-gray-500">
                             Your account
                         </p>
+
                         <h1 className="mt-1 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
                             My Account
                         </h1>
+
                         <p className="mt-2 text-sm text-gray-600">
                             Manage your profile and track your orders.
                         </p>
@@ -269,7 +337,10 @@ export default function AccountPage() {
                 {/* Profile card */}
                 <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
                     <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xl font-bold text-white ring-4 ring-gray-100">
+                        <div
+                            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xl font-bold text-white ring-4 ring-gray-100"
+                            aria-label={`Profile initials ${initials}`}
+                        >
                             {initials}
                         </div>
 
@@ -278,6 +349,7 @@ export default function AccountPage() {
                                 <h2 className="text-xl font-bold text-gray-900">
                                     {displayName}
                                 </h2>
+
                                 <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">
                                     Customer
                                 </span>
@@ -311,13 +383,19 @@ export default function AccountPage() {
                             <p className="text-sm font-medium text-gray-600">
                                 Total orders
                             </p>
-                            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-lg">
+
+                            <span
+                                className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-lg"
+                                aria-hidden="true"
+                            >
                                 📦
                             </span>
                         </div>
+
                         <p className="mt-3 text-3xl font-bold text-gray-900">
                             {ordersLoading ? "—" : orders.length}
                         </p>
+
                         <p className="mt-1 text-xs text-gray-500">
                             Orders placed by you
                         </p>
@@ -328,13 +406,21 @@ export default function AccountPage() {
                             <p className="text-sm font-medium text-gray-600">
                                 Total order value
                             </p>
-                            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-lg">
+
+                            <span
+                                className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-lg"
+                                aria-hidden="true"
+                            >
                                 ₹
                             </span>
                         </div>
+
                         <p className="mt-3 break-words text-2xl font-bold text-gray-900">
-                            {ordersLoading ? "—" : formatPrice(totalSpent, currency)}
+                            {ordersLoading
+                                ? "—"
+                                : formatPrice(totalSpent, currency)}
                         </p>
+
                         <p className="mt-1 text-xs text-gray-500">
                             Combined value of your orders
                         </p>
@@ -345,13 +431,20 @@ export default function AccountPage() {
                             <p className="text-sm font-medium text-gray-600">
                                 Latest order
                             </p>
-                            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-lg">
+
+                            <span
+                                className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-lg"
+                                aria-hidden="true"
+                            >
                                 🧾
                             </span>
                         </div>
+
                         <div className="mt-3">
                             {ordersLoading ? (
-                                <p className="text-2xl font-bold text-gray-900">—</p>
+                                <p className="text-2xl font-bold text-gray-900">
+                                    —
+                                </p>
                             ) : latestOrder ? (
                                 <span
                                     className={`inline-flex max-w-full rounded-full px-3 py-1.5 text-sm font-semibold capitalize ring-1 ring-inset ${getStatusStyle(
@@ -366,7 +459,8 @@ export default function AccountPage() {
                                 </p>
                             )}
                         </div>
-                        <p className="mt-2 text-xs text-gray-500">
+
+                        <p className="mt-2 break-all text-xs text-gray-500">
                             {latestOrder
                                 ? `Order #${latestOrder.id.slice(0, 8)}`
                                 : "Your recent order status"}
@@ -381,6 +475,7 @@ export default function AccountPage() {
                             <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
                                 My Orders
                             </h2>
+
                             <p className="mt-1 text-sm text-gray-500">
                                 View your purchases and payment details.
                             </p>
@@ -388,7 +483,9 @@ export default function AccountPage() {
 
                         <button
                             type="button"
-                            onClick={() => user && void loadOrders(user.id)}
+                            onClick={() => {
+                                if (user) void loadOrders(user.id);
+                            }}
                             disabled={ordersLoading || !user}
                             className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -401,13 +498,17 @@ export default function AccountPage() {
                             <p role="alert" className="text-sm text-red-700">
                                 {ordersError}
                             </p>
+
                             <p className="mt-2 text-xs text-red-600">
-                                Check your Supabase query permissions and Row Level Security
-                                (RLS) policies.
+                                Check your Supabase query permissions and Row
+                                Level Security (RLS) policies.
                             </p>
+
                             <button
                                 type="button"
-                                onClick={() => user && void loadOrders(user.id)}
+                                onClick={() => {
+                                    if (user) void loadOrders(user.id);
+                                }}
                                 className="mt-3 rounded-lg border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
                             >
                                 Try again
@@ -431,12 +532,16 @@ export default function AccountPage() {
                             <div className="text-4xl" aria-hidden="true">
                                 🛍️
                             </div>
+
                             <h3 className="mt-4 text-lg font-bold text-gray-900">
                                 No orders yet
                             </h3>
+
                             <p className="mx-auto mt-2 max-w-sm text-sm text-gray-600">
-                                When you place an order, you will find its details here.
+                                When you place an order, you will find its
+                                details here.
                             </p>
+
                             <Link
                                 href="/"
                                 className="mt-5 inline-flex rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700"
@@ -457,11 +562,15 @@ export default function AccountPage() {
                                             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                                                 Order number
                                             </p>
+
                                             <h3 className="mt-1 break-all font-bold text-gray-900">
                                                 #{order.id.slice(0, 8)}
                                             </h3>
+
                                             <p className="mt-1 text-xs text-gray-500">
-                                                {new Date(order.created_at).toLocaleString("en-IN", {
+                                                {new Date(
+                                                    order.created_at
+                                                ).toLocaleString("en-IN", {
                                                     dateStyle: "medium",
                                                     timeStyle: "short",
                                                 })}
@@ -470,8 +579,12 @@ export default function AccountPage() {
 
                                         <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end sm:gap-2">
                                             <p className="text-lg font-bold text-gray-900">
-                                                {formatPrice(order.total, order.currency)}
+                                                {formatPrice(
+                                                    order.total,
+                                                    order.currency
+                                                )}
                                             </p>
+
                                             <span
                                                 className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ring-1 ring-inset ${getStatusStyle(
                                                     order.status
@@ -498,18 +611,32 @@ export default function AccountPage() {
                                                             loading="lazy"
                                                             className="h-full w-full object-contain p-1"
                                                             onError={(event) => {
-                                                                event.currentTarget.style.display = "none";
-                                                                const fallback = event.currentTarget.nextElementSibling;
-                                                                if (fallback instanceof HTMLElement) {
-                                                                    fallback.style.display = "inline";
+                                                                event.currentTarget.style.display =
+                                                                    "none";
+
+                                                                const fallback =
+                                                                    event.currentTarget
+                                                                        .nextElementSibling;
+
+                                                                if (
+                                                                    fallback instanceof
+                                                                    HTMLElement
+                                                                ) {
+                                                                    fallback.style.display =
+                                                                        "inline";
                                                                 }
                                                             }}
                                                         />
                                                     ) : null}
+
                                                     <span
                                                         className="text-2xl"
                                                         aria-hidden="true"
-                                                        style={{ display: item.image_url ? "none" : "inline" }}
+                                                        style={{
+                                                            display: item.image_url
+                                                                ? "none"
+                                                                : "inline",
+                                                        }}
                                                     >
                                                         📦
                                                     </span>
@@ -519,42 +646,60 @@ export default function AccountPage() {
                                                     <p className="break-words font-semibold text-gray-900">
                                                         {item.product_name}
                                                     </p>
+
                                                     <p className="mt-1 text-sm text-gray-500">
                                                         Quantity: {item.quantity}
                                                     </p>
+
                                                     <p className="mt-1 text-xs text-gray-500">
                                                         Unit price:{" "}
-                                                        {formatPrice(item.unit_price, order.currency)}
+                                                        {formatPrice(
+                                                            item.unit_price,
+                                                            order.currency
+                                                        )}
                                                     </p>
                                                 </div>
 
                                                 <p className="shrink-0 text-right text-sm font-semibold text-gray-900">
-                                                    {formatPrice(item.line_total, order.currency)}
+                                                    {formatPrice(
+                                                        item.line_total,
+                                                        order.currency
+                                                    )}
                                                 </p>
                                             </div>
                                         ))}
                                     </div>
 
-                                    {/* Payment information */}
+                                    {/* Payment information and order details link */}
                                     <div className="border-t border-gray-200 bg-white px-4 py-4 sm:px-5">
-                                        <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
-                                            <p className="text-gray-600">
-                                                Payment method:{" "}
-                                                <span className="font-medium capitalize text-gray-900">
-                                                    {formatStatus(order.payment_method)}
-                                                </span>
-                                            </p>
-                                            <p className="text-gray-600">
-                                                Payment status:{" "}
-                                                <span
-                                                    className={`font-semibold capitalize ${order.payment_status.toLowerCase() === "paid"
-                                                        ? "text-green-700"
-                                                        : "text-gray-900"
-                                                        }`}
-                                                >
-                                                    {formatStatus(order.payment_status)}
-                                                </span>
-                                            </p>
+                                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm">
+                                                <p className="text-gray-600">
+                                                    Payment method:{" "}
+                                                    <span className="font-medium capitalize text-gray-900">
+                                                        {formatStatus(order.payment_method)}
+                                                    </span>
+                                                </p>
+
+                                                <p className="flex flex-wrap items-center gap-2 text-gray-600">
+                                                    Payment status:
+                                                    <span
+                                                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ring-1 ring-inset ${getPaymentStatusStyle(
+                                                            order.payment_status
+                                                        )}`}
+                                                    >
+                                                        {formatStatus(order.payment_status)}
+                                                    </span>
+                                                </p>
+                                            </div>
+
+                                            <Link
+                                                href={`/account/orders/${order.id}`}
+                                                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700"
+                                            >
+                                                View Details
+                                                <span aria-hidden="true">→</span>
+                                            </Link>
                                         </div>
                                     </div>
                                 </article>
@@ -563,6 +708,7 @@ export default function AccountPage() {
                     )}
                 </section>
 
+                {/* Continue shopping */}
                 <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
                     <Link
                         href="/"
