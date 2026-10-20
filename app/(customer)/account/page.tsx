@@ -34,6 +34,13 @@ export default function AccountPage() {
 
     const [user, setUser] = useState<User | null>(null);
     const [fullName, setFullName] = useState("");
+    const [phone, setPhone] = useState("");
+
+    const [editingProfile, setEditingProfile] = useState(false);
+    const [savingProfile, setSavingProfile] = useState(false);
+    const [profileMessage, setProfileMessage] = useState("");
+    const [profileError, setProfileError] = useState("");
+
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [ordersLoading, setOrdersLoading] = useState(true);
@@ -117,7 +124,7 @@ export default function AccountPage() {
 
                 const { data: profile, error: profileError } = await supabase
                     .from("profiles")
-                    .select("full_name")
+                    .select("full_name, phone")
                     .eq("id", data.user.id)
                     .maybeSingle();
 
@@ -135,6 +142,7 @@ export default function AccountPage() {
                     String(data.user.user_metadata?.full_name ?? "")
                 );
 
+                setPhone(profile?.phone ?? "");
                 setLoading(false);
 
                 await loadOrders(data.user.id);
@@ -158,6 +166,96 @@ export default function AccountPage() {
         };
     }, [router, loadOrders]);
 
+    async function handleSaveProfile(
+        event: React.FormEvent<HTMLFormElement>
+    ) {
+        event.preventDefault();
+
+        if (!user || savingProfile) return;
+
+        const cleanName = fullName.trim();
+        const cleanPhone = phone.trim();
+
+        if (!cleanName) {
+            setProfileError("Please enter your full name.");
+            setProfileMessage("");
+            return;
+        }
+
+        if (cleanName.length > 100) {
+            setProfileError(
+                "Your name must be 100 characters or fewer."
+            );
+            setProfileMessage("");
+            return;
+        }
+
+        if (cleanPhone.length > 30) {
+            setProfileError(
+                "Your phone number must be 30 characters or fewer."
+            );
+            setProfileMessage("");
+            return;
+        }
+
+        setSavingProfile(true);
+        setProfileError("");
+        setProfileMessage("");
+
+        try {
+            const supabase = createClient();
+
+            const { data: authData, error: authError } =
+                await supabase.auth.getUser();
+
+            if (
+                authError ||
+                !authData.user ||
+                authData.user.id !== user.id
+            ) {
+                throw new Error(
+                    "Your session has expired. Please log in again."
+                );
+            }
+
+            const { data: updatedProfile, error: updateError } =
+                await supabase
+                    .from("profiles")
+                    .update({
+                        full_name: cleanName,
+                        phone: cleanPhone || null,
+                    })
+                    .eq("id", authData.user.id)
+                    .select("id, full_name, phone")
+                    .maybeSingle();
+
+            if (updateError) throw updateError;
+
+            if (!updatedProfile) {
+                throw new Error(
+                    "Your profile could not be updated. Check your Supabase permissions."
+                );
+            }
+
+            setFullName(updatedProfile.full_name ?? cleanName);
+            setPhone(updatedProfile.phone ?? "");
+            setProfileMessage(
+                "Your profile was updated successfully."
+            );
+            setEditingProfile(false);
+        } catch (err) {
+            console.error("Failed to save profile:", err);
+
+            setProfileError(
+                err instanceof Error
+                    ? err.message
+                    : "Unable to update your profile. Please try again."
+            );
+        } finally {
+            setSavingProfile(false);
+        }
+    }
+
     async function handleLogout() {
         if (loggingOut) return;
 
@@ -166,7 +264,8 @@ export default function AccountPage() {
 
         try {
             const supabase = createClient();
-            const { error: logoutError } = await supabase.auth.signOut();
+            const { error: logoutError } =
+                await supabase.auth.signOut();
 
             if (logoutError) throw logoutError;
 
@@ -217,8 +316,8 @@ export default function AccountPage() {
         }
 
         if (
-            ["cancelled", "canceled", "failed", "refunded"].some((item) =>
-                value.includes(item)
+            ["cancelled", "canceled", "failed", "refunded"].some(
+                (item) => value.includes(item)
             )
         ) {
             return "bg-red-50 text-red-700 ring-red-200";
@@ -281,7 +380,6 @@ export default function AccountPage() {
             <main className="min-h-[60vh] bg-gray-50 px-4 py-16">
                 <div className="mx-auto max-w-5xl animate-pulse space-y-5">
                     <div className="h-9 w-48 rounded-lg bg-gray-200" />
-
                     <div className="h-36 rounded-2xl bg-white shadow-sm" />
 
                     <div className="grid gap-4 sm:grid-cols-3">
@@ -373,6 +471,177 @@ export default function AccountPage() {
                     </div>
                 </section>
 
+                {/* Edit Profile */}
+                <section className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-900">
+                                Profile Details
+                            </h2>
+                            <p className="mt-1 text-sm text-gray-500">
+                                Manage your personal information.
+                            </p>
+                        </div>
+
+                        {!editingProfile && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setProfileError("");
+                                    setProfileMessage("");
+                                    setEditingProfile(true);
+                                }}
+                                className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-100"
+                            >
+                                Edit Profile
+                            </button>
+                        )}
+                    </div>
+
+                    {profileMessage && (
+                        <p
+                            role="status"
+                            className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700"
+                        >
+                            {profileMessage}
+                        </p>
+                    )}
+
+                    {profileError && (
+                        <p
+                            role="alert"
+                            className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                        >
+                            {profileError}
+                        </p>
+                    )}
+
+                    {editingProfile ? (
+                        <form
+                            onSubmit={handleSaveProfile}
+                            className="mt-5 space-y-4"
+                        >
+                            <div>
+                                <label
+                                    htmlFor="profile-full-name"
+                                    className="mb-1.5 block text-sm font-medium text-gray-700"
+                                >
+                                    Full name
+                                </label>
+
+                                <input
+                                    id="profile-full-name"
+                                    type="text"
+                                    autoComplete="name"
+                                    maxLength={100}
+                                    required
+                                    value={fullName}
+                                    onChange={(event) =>
+                                        setFullName(event.target.value)
+                                    }
+                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-200"
+                                />
+                            </div>
+
+                            <div>
+                                <label
+                                    htmlFor="profile-phone"
+                                    className="mb-1.5 block text-sm font-medium text-gray-700"
+                                >
+                                    Phone number
+                                </label>
+
+                                <input
+                                    id="profile-phone"
+                                    type="tel"
+                                    autoComplete="tel"
+                                    maxLength={30}
+                                    value={phone}
+                                    onChange={(event) =>
+                                        setPhone(event.target.value)
+                                    }
+                                    placeholder="Enter your phone number"
+                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-200"
+                                />
+                            </div>
+
+                            <div>
+                                <label
+                                    htmlFor="profile-email"
+                                    className="mb-1.5 block text-sm font-medium text-gray-700"
+                                >
+                                    Email address
+                                </label>
+
+                                <input
+                                    id="profile-email"
+                                    type="email"
+                                    readOnly
+                                    value={user?.email ?? ""}
+                                    className="w-full cursor-not-allowed rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500"
+                                />
+
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Your login email is read-only here.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap gap-3 pt-2">
+                                <button
+                                    type="submit"
+                                    disabled={savingProfile}
+                                    className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {savingProfile
+                                        ? "Saving..."
+                                        : "Save Changes"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    disabled={savingProfile}
+                                    onClick={() => {
+                                        setFullName(
+                                            user?.user_metadata?.full_name
+                                                ? String(user.user_metadata.full_name)
+                                                : displayName === "Customer"
+                                                    ? ""
+                                                    : displayName
+                                        );
+
+                                        setProfileError("");
+                                        setProfileMessage("");
+                                        setEditingProfile(false);
+                                    }}
+                                    className="rounded-xl border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    ) : (
+                        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                            <div className="rounded-xl bg-gray-50 p-4">
+                                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                                    Full name
+                                </p>
+                                <p className="mt-2 break-words font-semibold text-gray-900">
+                                    {fullName || "Not provided"}
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl bg-gray-50 p-4">
+                                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                                    Phone number
+                                </p>
+                                <p className="mt-2 break-words font-semibold text-gray-900">
+                                    {phone || "Not provided"}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </section>
+
                 {/* Account summary */}
                 <section
                     aria-label="Account summary"
@@ -383,7 +652,6 @@ export default function AccountPage() {
                             <p className="text-sm font-medium text-gray-600">
                                 Total orders
                             </p>
-
                             <span
                                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-lg"
                                 aria-hidden="true"
@@ -406,7 +674,6 @@ export default function AccountPage() {
                             <p className="text-sm font-medium text-gray-600">
                                 Total order value
                             </p>
-
                             <span
                                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-lg"
                                 aria-hidden="true"
@@ -431,7 +698,6 @@ export default function AccountPage() {
                             <p className="text-sm font-medium text-gray-600">
                                 Latest order
                             </p>
-
                             <span
                                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-lg"
                                 aria-hidden="true"
@@ -475,7 +741,6 @@ export default function AccountPage() {
                             <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
                                 My Orders
                             </h2>
-
                             <p className="mt-1 text-sm text-gray-500">
                                 View your purchases and payment details.
                             </p>
@@ -500,8 +765,8 @@ export default function AccountPage() {
                             </p>
 
                             <p className="mt-2 text-xs text-red-600">
-                                Check your Supabase query permissions and Row
-                                Level Security (RLS) policies.
+                                Check your Supabase query permissions and Row Level
+                                Security (RLS) policies.
                             </p>
 
                             <button
@@ -515,7 +780,10 @@ export default function AccountPage() {
                             </button>
                         </div>
                     ) : ordersLoading ? (
-                        <div className="mt-6 space-y-4" aria-label="Loading orders">
+                        <div
+                            className="mt-6 space-y-4"
+                            aria-label="Loading orders"
+                        >
                             {[1, 2].map((item) => (
                                 <div
                                     key={item}
@@ -538,8 +806,8 @@ export default function AccountPage() {
                             </h3>
 
                             <p className="mx-auto mt-2 max-w-sm text-sm text-gray-600">
-                                When you place an order, you will find its
-                                details here.
+                                When you place an order, you will find its details
+                                here.
                             </p>
 
                             <Link
@@ -568,21 +836,19 @@ export default function AccountPage() {
                                             </h3>
 
                                             <p className="mt-1 text-xs text-gray-500">
-                                                {new Date(
-                                                    order.created_at
-                                                ).toLocaleString("en-IN", {
-                                                    dateStyle: "medium",
-                                                    timeStyle: "short",
-                                                })}
+                                                {new Date(order.created_at).toLocaleString(
+                                                    "en-IN",
+                                                    {
+                                                        dateStyle: "medium",
+                                                        timeStyle: "short",
+                                                    }
+                                                )}
                                             </p>
                                         </div>
 
                                         <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end sm:gap-2">
                                             <p className="text-lg font-bold text-gray-900">
-                                                {formatPrice(
-                                                    order.total,
-                                                    order.currency
-                                                )}
+                                                {formatPrice(order.total, order.currency)}
                                             </p>
 
                                             <span
@@ -615,15 +881,10 @@ export default function AccountPage() {
                                                                     "none";
 
                                                                 const fallback =
-                                                                    event.currentTarget
-                                                                        .nextElementSibling;
+                                                                    event.currentTarget.nextElementSibling;
 
-                                                                if (
-                                                                    fallback instanceof
-                                                                    HTMLElement
-                                                                ) {
-                                                                    fallback.style.display =
-                                                                        "inline";
+                                                                if (fallback instanceof HTMLElement) {
+                                                                    fallback.style.display = "inline";
                                                                 }
                                                             }}
                                                         />
@@ -670,7 +931,7 @@ export default function AccountPage() {
                                         ))}
                                     </div>
 
-                                    {/* Payment information and order details link */}
+                                    {/* Payment information and order details */}
                                     <div className="border-t border-gray-200 bg-white px-4 py-4 sm:px-5">
                                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                                             <div className="flex flex-wrap gap-x-8 gap-y-3 text-sm">
@@ -694,7 +955,7 @@ export default function AccountPage() {
                                             </div>
 
                                             <Link
-                                                href={`/account/orders/${order.id}`}
+                                                href={`/account/orders/${encodeURIComponent(order.id)}`}
                                                 className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-700"
                                             >
                                                 View Details
