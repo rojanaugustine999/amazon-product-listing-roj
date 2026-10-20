@@ -1,121 +1,212 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-import CartButton from "@/components/CartButton";
+import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
 
+type Profile = {
+    role: string;
+};
+
 export default function Navbar() {
-    const pathname = usePathname();
-    const router = useRouter();
     const supabase = createClient();
+    const router = useRouter();
+
+    // Use the same contexts as the Cart and Wishlist pages.
+    const { cartItems } = useCart();
     const { wishlistItems } = useWishlist();
 
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [user, setUser] = useState<User | null>(null);
+    const [role, setRole] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loggingOut, setLoggingOut] = useState(false);
+
+    // Total cart quantity, including quantities greater than one.
+    const cartCount = cartItems.reduce(
+        (total, item) => total + item.quantity,
+        0
+    );
+
+    // Wishlist count is the number of saved products.
+    const wishlistCount = wishlistItems.length;
+
+    const loadProfile = useCallback(
+        async (userId: string) => {
+            const { data, error } = await supabase
+                .from("profiles")
+                .select("role")
+                .eq("id", userId)
+                .maybeSingle();
+
+            if (error) {
+                console.error(
+                    "Could not load profile role:",
+                    error.message
+                );
+                setRole(null);
+                return;
+            }
+
+            const profile = data as Profile | null;
+            setRole(profile?.role ?? null);
+        },
+        [supabase]
+    );
 
     useEffect(() => {
-        let mounted = true;
+        let active = true;
 
-        async function checkUser() {
-            const {
-                data: { user },
-            } = await supabase.auth.getUser();
+        const loadUser = async () => {
+            try {
+                const {
+                    data: { user: currentUser },
+                    error,
+                } = await supabase.auth.getUser();
 
-            if (mounted) {
-                setIsLoggedIn(Boolean(user));
-                setLoading(false);
+                if (error) {
+                    console.error("Could not load user:", error.message);
+                }
+
+                if (!active) return;
+
+                setUser(currentUser);
+
+                if (currentUser) {
+                    await loadProfile(currentUser.id);
+                } else {
+                    setRole(null);
+                }
+            } catch (error) {
+                console.error("Could not initialize Navbar:", error);
+            } finally {
+                if (active) {
+                    setLoading(false);
+                }
             }
-        }
+        };
 
-        checkUser();
+        void loadUser();
 
         const {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, session) => {
-            setIsLoggedIn(Boolean(session?.user));
+            if (!active) return;
+
+            const currentUser = session?.user ?? null;
+            setUser(currentUser);
+
+            if (!currentUser) {
+                setRole(null);
+                setLoading(false);
+                return;
+            }
+
+            // Avoid running the profile query directly inside
+            // the Supabase auth callback.
+            setTimeout(() => {
+                if (active) {
+                    void loadProfile(currentUser.id);
+                }
+            }, 0);
+
             setLoading(false);
         });
 
         return () => {
-            mounted = false;
+            active = false;
             subscription.unsubscribe();
         };
-    }, [supabase]);
+    }, [supabase, loadProfile]);
 
-    async function handleLogout() {
+    const handleLogout = async () => {
+        if (loggingOut) return;
+
+        setLoggingOut(true);
+
         const { error } = await supabase.auth.signOut();
 
         if (error) {
-            alert("Unable to log out. Please try again.");
+            console.error("Logout failed:", error.message);
+            setLoggingOut(false);
             return;
         }
 
-        setIsLoggedIn(false);
-        router.push("/");
+        setUser(null);
+        setRole(null);
+        router.push("/login");
         router.refresh();
-    }
-
-    const linkClass =
-        "inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-100 sm:px-4";
+        setLoggingOut(false);
+    };
 
     return (
-        <header className="border-b border-gray-200 bg-gray-50">
-            <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-50 border-b border-gray-200 bg-white">
+            <nav className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
                 <Link
                     href="/"
-                    className="text-xl font-bold text-gray-900 sm:text-2xl"
+                    className="shrink-0 text-2xl font-bold tracking-tight text-gray-950"
                 >
                     Amazon
                 </Link>
 
-                <nav
-                    aria-label="Main navigation"
-                    className="flex flex-wrap items-center gap-2"
-                >
-                    {!loading &&
-                        (isLoggedIn ? (
-                            <>
-                                <Link href="/account" className={linkClass}>
-                                    My Account
-                                </Link>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    {!loading && user && role === "admin" && (
+                        <Link
+                            href="/admin/orders"
+                            className="rounded-full bg-orange-100 px-4 py-2 text-sm font-semibold text-orange-800 transition hover:bg-orange-200"
+                        >
+                            Admin Orders
+                        </Link>
+                    )}
 
-                                <button
-                                    type="button"
-                                    onClick={handleLogout}
-                                    className={linkClass}
-                                >
-                                    Logout
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <Link href="/login" className={linkClass}>
-                                    Login
-                                </Link>
+                    {!loading && user && (
+                        <Link
+                            href="/account"
+                            className="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50"
+                        >
+                            My Account
+                        </Link>
+                    )}
 
-                                <Link
-                                    href="/register"
-                                    className="inline-flex items-center justify-center rounded-full bg-black px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 sm:px-4"
-                                >
-                                    Register
-                                </Link>
-                            </>
-                        ))}
+                    {!loading && user && (
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            disabled={loggingOut}
+                            className="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {loggingOut ? "Logging out..." : "Logout"}
+                        </button>
+                    )}
 
                     <Link
                         href="/wishlist"
-                        className={linkClass}
+                        className="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50"
                     >
-                        <span className="mr-1 text-red-600">♥</span>
-                        Wishlist ({wishlistItems.length})
+                        <span className="text-red-500">♥</span>{" "}
+                        Wishlist ({wishlistCount})
                     </Link>
 
-                    <CartButton />
-                </nav>
-            </div>
+                    <Link
+                        href="/cart"
+                        className="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800"
+                    >
+                        🛒 Cart ({cartCount})
+                    </Link>
+
+                    {!loading && !user && (
+                        <Link
+                            href="/login"
+                            className="rounded-full border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50"
+                        >
+                            Login
+                        </Link>
+                    )}
+                </div>
+            </nav>
         </header>
     );
 }

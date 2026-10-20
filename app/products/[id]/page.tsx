@@ -1,40 +1,177 @@
+
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
-import { products } from "@/data/products";
+import type { Product } from "@/data/products";
 import { getProductStock } from "@/lib/stock";
 import AddToCartButton from "@/components/AddToCartButton";
+import { createClient } from "@/lib/supabase/client";
 
-type ProductPageProps = {
-    params: Promise<{ id: string }>;
+type SupabaseProduct = {
+    id: number;
+    name: string;
+    category: string;
+    price: number | string;
+    original_price: number | string;
+    rating: number | string;
+    reviews: number;
+    image: string;
 };
 
-export default async function ProductDetailsPage({
-    params,
-}: ProductPageProps) {
-    const { id } = await params;
+export default function ProductDetailsPage() {
+    const params = useParams<{ id: string }>();
+    const router = useRouter();
 
-    // Validate the product ID.
-    if (!/^\d+$/.test(id)) {
-        notFound();
+    const id = params.id;
+
+    const [product, setProduct] = useState<Product | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        let active = true;
+
+        async function loadProduct() {
+            if (!id || !/^\d+$/.test(id)) {
+                setProduct(null);
+                setLoading(false);
+                return;
+            }
+
+            setLoading(true);
+            setError("");
+
+            try {
+                const supabase = createClient();
+
+                const { data, error: queryError } = await supabase
+                    .from("products")
+                    .select(
+                        "id, name, category, price, original_price, rating, reviews, image"
+                    )
+                    .eq("id", Number(id))
+                    .maybeSingle();
+
+                if (queryError) {
+                    throw queryError;
+                }
+
+                if (!data) {
+                    if (active) {
+                        setProduct(null);
+                    }
+                    return;
+                }
+
+                const item = data as SupabaseProduct;
+
+                const mappedProduct: Product = {
+                    id: Number(item.id),
+                    name: item.name,
+                    category: item.category,
+                    price: Number(item.price),
+                    originalPrice: Number(item.original_price),
+                    rating: Number(item.rating),
+                    reviews: Number(item.reviews),
+                    image: item.image,
+                };
+
+                if (active) {
+                    setProduct(mappedProduct);
+                }
+            } catch (err) {
+                console.error("Failed to load product details:", err);
+
+                if (active) {
+                    setError(
+                        "Unable to load this product. Please try again."
+                    );
+                }
+            } finally {
+                if (active) {
+                    setLoading(false);
+                }
+            }
+        }
+
+        void loadProduct();
+
+        return () => {
+            active = false;
+        };
+    }, [id]);
+
+    if (loading) {
+        return (
+            <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+                <p className="text-gray-600" role="status">
+                    Loading product details...
+                </p>
+            </main>
+        );
     }
 
-    // Load the product from local data.
-    const product = products.find(
-        (item) => item.id === Number(id)
-    );
+    if (error) {
+        return (
+            <main className="min-h-screen bg-gray-50 px-4 py-12">
+                <div className="mx-auto max-w-xl rounded-xl border border-red-200 bg-white p-8 text-center">
+                    <p className="text-red-700" role="alert">
+                        {error}
+                    </p>
 
-    // Show the Not Found page for an unknown product.
+                    <button
+                        type="button"
+                        onClick={() => router.refresh()}
+                        className="mt-5 rounded-lg bg-gray-900 px-5 py-2.5 font-semibold text-white hover:bg-gray-700"
+                    >
+                        Try again
+                    </button>
+
+                    <div>
+                        <Link
+                            href="/"
+                            className="mt-4 inline-block text-sm font-medium text-gray-600 underline"
+                        >
+                            Back to Products
+                        </Link>
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
     if (!product) {
-        notFound();
+        return (
+            <main className="min-h-screen bg-gray-50 px-4 py-12">
+                <div className="mx-auto max-w-xl rounded-xl border border-gray-200 bg-white p-8 text-center">
+                    <h1 className="text-2xl font-bold text-gray-900">
+                        Product not found
+                    </h1>
+
+                    <p className="mt-3 text-gray-600">
+                        This product may have been removed or the URL may be incorrect.
+                    </p>
+
+                    <Link
+                        href="/"
+                        className="mt-6 inline-block rounded-lg bg-gray-900 px-5 py-3 font-semibold text-white hover:bg-gray-700"
+                    >
+                        Back to Products
+                    </Link>
+                </div>
+            </main>
+        );
     }
 
     const stock = getProductStock(product.id);
     const outOfStock = stock <= 0;
 
     const formatPrice = (price: number) =>
-        `₹${price.toLocaleString("en-IN")} `;
+        `₹${price.toLocaleString("en-IN")}`;
 
     return (
         <main className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6">
@@ -47,7 +184,7 @@ export default async function ProductDetailsPage({
                 </Link>
 
                 <div className="grid grid-cols-1 gap-8 rounded-2xl bg-white p-5 shadow-sm md:grid-cols-2 md:gap-12 md:p-8">
-                    {/* Product Image */}
+                    {/* Product image */}
                     <div className="relative flex min-h-80 items-center justify-center rounded-xl bg-gray-100 p-6">
                         <div className="relative h-80 w-full">
                             <Image
@@ -61,7 +198,7 @@ export default async function ProductDetailsPage({
                         </div>
                     </div>
 
-                    {/* Product Details */}
+                    {/* Product details */}
                     <div className="flex flex-col">
                         <p className="text-sm capitalize text-gray-500">
                             {product.category}
@@ -88,18 +225,18 @@ export default async function ProductDetailsPage({
                         </div>
 
                         <p
-                            className={`mt - 5 font - medium ${outOfStock
+                            className={`mt-5 font-medium ${outOfStock
                                     ? "text-red-600"
                                     : stock <= 3
                                         ? "text-orange-600"
                                         : "text-green-700"
-                                } `}
+                                }`}
                         >
                             {outOfStock
                                 ? "Out of stock"
                                 : stock <= 3
                                     ? `Only ${stock} left in stock`
-                                    : `In stock(${stock} available)`}
+                                    : `In stock (${stock} available)`}
                         </p>
 
                         <p className="mt-5 leading-7 text-gray-600">

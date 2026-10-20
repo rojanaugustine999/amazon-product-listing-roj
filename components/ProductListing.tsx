@@ -1,9 +1,8 @@
-
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import ProductCard from "@/components/ProductCard";
 import SearchBar from "@/components/SearchBar";
@@ -21,6 +20,17 @@ type ProductListingProps = {
     products: Product[];
 };
 
+type SupabaseProduct = {
+    id: number;
+    name: string;
+    category: string;
+    price: number | string;
+    original_price: number | string;
+    rating: number | string;
+    reviews: number;
+    image: string;
+};
+
 export default function ProductListing({
     products,
 }: ProductListingProps) {
@@ -32,6 +42,59 @@ export default function ProductListing({
     const [authLoading, setAuthLoading] = useState(true);
     const [loggingOut, setLoggingOut] = useState(false);
 
+    const [storeProducts, setStoreProducts] = useState<Product[]>(products);
+    const [productsLoading, setProductsLoading] = useState(true);
+    const [productsError, setProductsError] = useState<string | null>(null);
+
+    const loadStoreProducts = useCallback(async () => {
+        setProductsLoading(true);
+        setProductsError(null);
+
+        try {
+            const supabase = createClient();
+
+            const { data, error } = await supabase
+                .from("products")
+                .select(
+                    "id, name, category, price, original_price, rating, reviews, image"
+                )
+                .order("id", { ascending: true });
+
+            if (error) {
+                throw error;
+            }
+
+            const mappedProducts: Product[] = (
+                (data ?? []) as SupabaseProduct[]
+            ).map((item) => ({
+                id: Number(item.id),
+                name: item.name,
+                category: item.category,
+                price: Number(item.price),
+                originalPrice: Number(item.original_price),
+                rating: Number(item.rating),
+                reviews: Number(item.reviews),
+                image: item.image,
+            }));
+
+            setStoreProducts(mappedProducts);
+        } catch (error) {
+            console.error("Failed to load storefront products:", error);
+
+            setProductsError(
+                "Unable to refresh products from Supabase. Showing the existing product list."
+            );
+        } finally {
+            setProductsLoading(false);
+        }
+    }, []);
+
+    // Fetch the latest product data from Supabase.
+    useEffect(() => {
+        void loadStoreProducts();
+    }, [loadStoreProducts]);
+
+    // Load the current user and listen for authentication changes.
     useEffect(() => {
         const supabase = createClient();
         let active = true;
@@ -107,7 +170,7 @@ export default function ProductListing({
         }
 
         const query = params.toString();
-        router.push(query ? `/?${query}` : "/");
+        router.push(query ? `/? ${query} ` : "/");
     };
 
     const searchFromUrl = searchParams.get("search") || "";
@@ -122,12 +185,13 @@ export default function ProductListing({
 
     const productsPerPage = 8;
 
+    // Categories now come from the Supabase-backed product list.
     const categories = [
         "All",
-        ...new Set(products.map((product) => product.category)),
+        ...new Set(storeProducts.map((product) => product.category)),
     ];
 
-    const filteredProducts = products.filter((product) => {
+    const filteredProducts = storeProducts.filter((product) => {
         const matchesSearch = product.name
             .toLowerCase()
             .includes(searchFromUrl.toLowerCase());
@@ -179,8 +243,31 @@ export default function ProductListing({
     return (
         <main className="min-h-screen overflow-x-hidden bg-gray-50">
             <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
-                {/* Header and customer authentication */}
+                {/* Product loading and error messages */}
+                {productsLoading && (
+                    <p
+                        className="mb-4 text-sm text-gray-500"
+                        role="status"
+                    >
+                        Refreshing products...
+                    </p>
+                )}
 
+                {productsError && (
+                    <div
+                        className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+                        role="status"
+                    >
+                        <p>{productsError}</p>
+                        <button
+                            type="button"
+                            onClick={() => void loadStoreProducts()}
+                            className="mt-2 font-semibold underline"
+                        >
+                            Try again
+                        </button>
+                    </div>
+                )}
 
                 {/* Search */}
                 <div className="mb-5 sm:mb-6">
@@ -242,7 +329,9 @@ export default function ProductListing({
                 ) : (
                     <div className="rounded-xl border border-gray-200 bg-white px-4 py-12 text-center">
                         <p className="text-lg font-semibold text-gray-800">
-                            No products found
+                            {productsLoading
+                                ? "Loading products..."
+                                : "No products found"}
                         </p>
                         <p className="mt-2 text-sm text-gray-600">
                             Try another search or change your filters.
