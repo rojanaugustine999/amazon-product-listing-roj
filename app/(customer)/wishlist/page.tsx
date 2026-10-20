@@ -71,7 +71,7 @@ export default function WishlistPage() {
                             >
                                 {/* Product Image */}
                                 <Link
-                                    href={`/ products / ${product.id} `}
+                                    href={`/products/${product.id}`}
                                     className="block"
                                 >
                                     <div className="relative h-56 bg-gray-100">
@@ -92,7 +92,7 @@ export default function WishlistPage() {
                                     </p>
 
                                     <Link
-                                        href={`/ products / ${product.id} `}
+                                        href={`/products/${product.id}`}
                                         className="mt-1 block font-semibold hover:underline"
                                     >
                                         {product.name}
