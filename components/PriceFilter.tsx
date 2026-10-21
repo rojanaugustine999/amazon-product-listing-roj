@@ -17,25 +17,31 @@ export default function PriceFilter({
     onPriceChange,
 }: PriceFilterProps) {
     return (
-        <div className="mb-8">
-            <h2 className="mb-3 text-sm font-semibold">
-                Price
-            </h2>
+        <div className="flex flex-col gap-1.5">
+            {priceOptions.map((price) => {
+                const selected = selectedPrice === price;
 
-            <div className="flex flex-wrap gap-3">
-                {priceOptions.map((price) => (
+                return (
                     <button
                         key={price}
+                        type="button"
                         onClick={() => onPriceChange(price)}
-                        className={`rounded-full border px-4 py-2 text-sm transition ${selectedPrice === price
-                                ? "bg-black text-white"
-                                : "bg-white text-gray-700 hover:bg-gray-100"
+                        aria-pressed={selected}
+                        className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${selected
+                                ? "bg-gray-900 font-semibold text-white"
+                                : "text-gray-700 hover:bg-gray-100 hover:text-gray-950"
                             }`}
                     >
-                        {price}
+                        <span>{price}</span>
+
+                        {selected && (
+                            <span aria-hidden="true" className="text-xs">
+                                ✓
+                            </span>
+                        )}
                     </button>
-                ))}
-            </div>
+                );
+            })}
         </div>
     );
 }

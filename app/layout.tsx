@@ -1,9 +1,11 @@
+
 import type { Metadata } from "next";
 import "./globals.css";
 
 import { CartProvider } from "@/context/CartContext";
 import { WishlistProvider } from "@/context/WishlistContext";
 import { ToastProvider } from "@/context/ToastContext";
+import { SidebarProvider } from "@/context/SidebarContext";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -24,8 +26,10 @@ export default function RootLayout({
         <ToastProvider>
           <CartProvider>
             <WishlistProvider>
-              <Navbar />
-              {children}
+              <SidebarProvider>
+                <Navbar />
+                {children}
+              </SidebarProvider>
             </WishlistProvider>
           </CartProvider>
         </ToastProvider>

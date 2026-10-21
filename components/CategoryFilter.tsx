@@ -12,19 +12,31 @@ export default function CategoryFilter({
     onCategoryChange,
 }: CategoryFilterProps) {
     return (
-        <div className="mb-8 flex flex-wrap gap-3">
-            {categories.map((category) => (
-                <button
-                    key={category}
-                    onClick={() => onCategoryChange(category)}
-                    className={`rounded-full border px-5 py-2 text-sm font-medium transition ${selectedCategory === category
-                            ? "bg-black text-white"
-                            : "bg-white text-gray-700 hover:bg-gray-100"
-                        }`}
-                >
-                    {category}
-                </button>
-            ))}
+        <div className="flex flex-col gap-1.5">
+            {categories.map((category) => {
+                const selected = selectedCategory === category;
+
+                return (
+                    <button
+                        key={category}
+                        type="button"
+                        onClick={() => onCategoryChange(category)}
+                        aria-pressed={selected}
+                        className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors ${selected
+                                ? "bg-gray-900 font-semibold text-white"
+                                : "text-gray-700 hover:bg-gray-100 hover:text-gray-950"
+                            }`}
+                    >
+                        <span>{category}</span>
+
+                        {selected && (
+                            <span aria-hidden="true" className="text-xs">
+                                ✓
+                            </span>
+                        )}
+                    </button>
+                );
+            })}
         </div>
     );
 }

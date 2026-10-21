@@ -2,6 +2,7 @@
 
 import {
     createContext,
+    useCallback,
     useContext,
     useEffect,
     useState,
@@ -11,22 +12,24 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-type MenuItem = {
-    label: string;
-    href: string;
-    icon: string;
+type CustomerSidebarContextType = {
+    collapsed: boolean;
+    toggleCollapsed: () => void;
 };
 
-const menuItems: MenuItem[] = [
-    { label: "Dashboard", href: "/account", icon: "▦" },
-    { label: "My Orders", href: "/account/orders", icon: "📦" },
-    { label: "Wishlist", href: "/wishlist", icon: "♡" },
-];
-
-const SidebarContext = createContext(false);
+const SidebarContext =
+    createContext<CustomerSidebarContextType | null>(null);
 
 export function useCustomerSidebar() {
-    return useContext(SidebarContext);
+    const context = useContext(SidebarContext);
+
+    if (!context) {
+        throw new Error(
+            "useCustomerSidebar must be used within the customer layout"
+        );
+    }
+
+    return context;
 }
 
 export default function AccountLayout({
@@ -34,270 +37,322 @@ export default function AccountLayout({
 }: {
     children: ReactNode;
 }) {
-    const pathname = usePathname();
+    const supabase = createClient();
     const router = useRouter();
+    const pathname = usePathname();
 
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [checkingAuth, setCheckingAuth] = useState(true);
-    const [authorized, setAuthorized] = useState(false);
-    const [customerName, setCustomerName] = useState("Customer");
+    const [fullName, setFullName] = useState("");
 
+    const toggleCollapsed = useCallback(() => {
+        setCollapsed((current) => !current);
+    }, []);
+
+    // Keep the top navbar icon synchronized with the sidebar state.
+    useEffect(() => {
+        window.dispatchEvent(
+            new CustomEvent("customer-sidebar-state-change", {
+                detail: { collapsed },
+            })
+        );
+    }, [collapsed]);
+
+    // Let the top navbar control the customer sidebar.
+    useEffect(() => {
+        const handleCustomerSidebarToggle = () => {
+            setCollapsed((current) => !current);
+        };
+
+        window.addEventListener(
+            "customer-sidebar-toggle",
+            handleCustomerSidebarToggle
+        );
+
+        return () => {
+            window.removeEventListener(
+                "customer-sidebar-toggle",
+                handleCustomerSidebarToggle
+            );
+        };
+    }, []);
+
+    // Close the mobile drawer when the route changes.
+    useEffect(() => {
+        setMobileOpen(false);
+    }, [pathname]);
+
+    // Verify authentication and load the customer's profile.
     useEffect(() => {
         let active = true;
 
-        async function checkCustomer() {
-            const supabase = createClient();
+        const verifyUser = async () => {
+            setCheckingAuth(true);
 
             try {
                 const {
                     data: { user },
-                    error,
+                    error: authError,
                 } = await supabase.auth.getUser();
 
-                if (!active) return;
-
-                if (error || !user) {
-                    router.replace(
-                        `/login?next=${encodeURIComponent(pathname || "/account")}`
-                    );
+                if (authError || !user) {
+                    if (active) {
+                        router.replace(
+                            `/login?next=${encodeURIComponent(pathname)}`
+                        );
+                    }
                     return;
                 }
 
-                const { data: profile, error: profileError } = await supabase
-                    .from("profiles")
-                    .select("full_name, role")
-                    .eq("id", user.id)
-                    .maybeSingle();
+                const { data: profile, error: profileError } =
+                    await supabase
+                        .from("profiles")
+                        .select("full_name, role")
+                        .eq("id", user.id)
+                        .maybeSingle();
 
                 if (!active) return;
 
                 if (profileError) {
-                    console.error("Could not load customer profile:", profileError);
-                    setAuthorized(false);
-                    setCheckingAuth(false);
-                    return;
+                    console.error(
+                        "Could not load customer profile:",
+                        profileError.message
+                    );
                 }
 
-                // Do not show the customer dashboard to administrators.
-                // Administrators can continue using /admin.
                 if (profile?.role === "admin") {
                     router.replace("/admin");
                     return;
                 }
 
-                setCustomerName(
-                    profile?.full_name ||
-                    String(user.user_metadata?.full_name ?? "") ||
-                    user.email ||
-                    "Customer"
-                );
-                setAuthorized(true);
-                setCheckingAuth(false);
+                setFullName(profile?.full_name ?? "");
             } catch (error) {
-                console.error("Customer authorization failed:", error);
+                console.error("Could not verify customer:", error);
 
                 if (active) {
-                    setAuthorized(false);
+                    router.replace(
+                        `/login?next=${encodeURIComponent(pathname)}`
+                    );
+                }
+            } finally {
+                if (active) {
                     setCheckingAuth(false);
                 }
             }
-        }
+        };
 
-        setCheckingAuth(true);
-        void checkCustomer();
+        void verifyUser();
 
         return () => {
             active = false;
         };
-    }, [pathname, router]);
+    }, [pathname, router, supabase]);
 
-    async function handleLogout() {
-        const supabase = createClient();
+    const handleLogout = async () => {
         const { error } = await supabase.auth.signOut();
 
         if (error) {
-            console.error("Logout failed:", error);
+            console.error("Logout failed:", error.message);
             return;
         }
 
         router.replace("/login");
         router.refresh();
-    }
+    };
 
-    const isActive = (href: string) =>
-        href === "/account"
-            ? pathname === "/account"
-            : pathname === href || pathname.startsWith(`${href}/`);
+    const sidebarWidth = collapsed ? "lg:pl-[76px]" : "lg:pl-64";
+
+    const sidebarLinks = [
+        {
+            label: "Dashboard",
+            href: "/account",
+            icon: "▦",
+        },
+        {
+            label: "My Orders",
+            href: "/account/orders",
+            icon: "▤",
+        },
+        {
+            label: "My Profile",
+            href: "/account/profile",
+            icon: "♙",
+        },
+        {
+            label: "Wishlist",
+            href: "/wishlist",
+            icon: "♡",
+        },
+    ];
 
     if (checkingAuth) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-gray-50">
-                <div className="text-center">
-                    <div className="mx-auto h-9 w-9 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900" />
-                    <p className="mt-4 text-sm text-gray-600">
-                        Verifying account access...
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!authorized) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-gray-50 px-6">
-                <div className="max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-                    <div className="text-3xl">🔒</div>
-                    <h1 className="mt-4 text-xl font-bold text-gray-900">
-                        Account access unavailable
-                    </h1>
-                    <p className="mt-2 text-sm leading-6 text-gray-600">
-                        We could not verify your account permissions. Please try again.
-                    </p>
-                    <button
-                        onClick={() => router.refresh()}
-                        className="mt-6 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-700"
-                    >
-                        Try again
-                    </button>
-                </div>
+            <div className="flex min-h-[60vh] items-center justify-center bg-gray-50">
+                <p className="text-sm text-gray-600">
+                    Checking your account...
+                </p>
             </div>
         );
     }
 
     return (
-        <SidebarContext.Provider value={collapsed}>
-            <div className="min-h-screen bg-gray-50 text-gray-900">
+        <SidebarContext.Provider
+            value={{ collapsed, toggleCollapsed }}
+        >
+            <div className="min-h-screen bg-gray-50">
+                {/* Mobile backdrop */}
                 {mobileOpen && (
                     <button
-                        aria-label="Close sidebar"
+                        type="button"
+                        aria-label="Close navigation menu"
                         onClick={() => setMobileOpen(false)}
-                        className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+                        className="fixed inset-0 z-30 bg-black/40 lg:hidden"
                     />
                 )}
 
+                {/* Customer sidebar */}
                 <aside
-                    className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-gray-200 bg-white transition-all duration-200 ${collapsed ? "w-[76px]" : "w-64"
+                    className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-gray-200 bg-white transition-all duration-200 ${collapsed ? "w-[76px]" : "w-64"
                         } ${mobileOpen
                             ? "translate-x-0"
                             : "-translate-x-full lg:translate-x-0"
                         }`}
                 >
-                    <Link
-                        href="/account"
-                        onClick={() => setMobileOpen(false)}
-                        className="flex h-[72px] items-center gap-3 border-b border-gray-200 px-5"
-                    >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-900 text-lg font-bold text-white">
-                            C
-                        </span>
+                    <div className="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 px-4">
                         {!collapsed && (
-                            <span className="text-lg font-bold tracking-tight">
+                            <span className="truncate font-bold text-gray-900">
                                 My Account
                             </span>
                         )}
-                    </Link>
 
-                    <div className="px-3 py-5">
-                        {!collapsed && (
-                            <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
-                                Customer Menu
-                            </p>
+                        <button
+                            type="button"
+                            onClick={() => setMobileOpen(false)}
+                            aria-label="Close sidebar"
+                            className="rounded-lg p-2 text-gray-600 hover:bg-gray-100 lg:hidden"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    <div className="border-b border-gray-200 px-4 py-4">
+                        {!collapsed ? (
+                            <>
+                                <p className="truncate text-sm font-semibold text-gray-900">
+                                    {fullName || "Welcome"}
+                                </p>
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Customer account
+                                </p>
+                            </>
+                        ) : (
+                            <div
+                                className="text-center text-sm font-semibold text-gray-700"
+                                title={fullName || "Customer"}
+                            >
+                                {(fullName || "C")
+                                    .charAt(0)
+                                    .toUpperCase()}
+                            </div>
                         )}
+                    </div>
 
-                        <nav className="space-y-1">
-                            {menuItems.map((item) => (
+                    <nav
+                        aria-label="Customer navigation"
+                        className="flex-1 space-y-1 overflow-y-auto p-3"
+                    >
+                        {sidebarLinks.map((item) => {
+                            const active =
+                                item.href === "/account"
+                                    ? pathname === "/account"
+                                    : pathname === item.href ||
+                                    pathname.startsWith(
+                                        `${item.href}/`
+                                    );
+
+                            return (
                                 <Link
                                     key={item.href}
                                     href={item.href}
-                                    title={collapsed ? item.label : undefined}
-                                    onClick={() => setMobileOpen(false)}
-                                    className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${isActive(item.href)
-                                        ? "bg-gray-900 text-white"
-                                        : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                                    title={
+                                        collapsed ? item.label : undefined
+                                    }
+                                    className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition ${active
+                                            ? "bg-gray-900 text-white"
+                                            : "text-gray-700 hover:bg-gray-100"
                                         }`}
                                 >
-                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center text-lg">
+                                    <span className="w-5 shrink-0 text-center text-lg">
                                         {item.icon}
                                     </span>
-                                    {!collapsed && <span>{item.label}</span>}
-                                </Link>
-                            ))}
-                        </nav>
-                    </div>
 
-                    <div className="mt-auto border-t border-gray-200 p-3">
+                                    {!collapsed && (
+                                        <span className="truncate">
+                                            {item.label}
+                                        </span>
+                                    )}
+                                </Link>
+                            );
+                        })}
+                    </nav>
+
+                    <div className="space-y-2 border-t border-gray-200 p-3">
                         <button
-                            onClick={() => setCollapsed((value) => !value)}
-                            className="hidden w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-gray-600 hover:bg-gray-100 lg:flex"
-                            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-                            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+                            type="button"
+                            onClick={toggleCollapsed}
+                            className="hidden w-full items-center justify-center gap-2 rounded-lg px-3 py-3 text-sm text-gray-700 transition hover:bg-gray-100 lg:flex"
+                            title={
+                                collapsed
+                                    ? "Expand sidebar"
+                                    : "Collapse sidebar"
+                            }
                         >
-                            <span className="w-6 text-center text-lg">
-                                {collapsed ? "»" : "«"}
+                            <span aria-hidden="true">
+                                {collapsed ? "⇥" : "⇤"}
                             </span>
-                            {!collapsed && <span>Collapse sidebar</span>}
+
+                            {!collapsed && (
+                                <span>Collapse sidebar</span>
+                            )}
                         </button>
 
-                        <Link
-                            href="/"
-                            className="mt-1 flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-gray-600 hover:bg-gray-100"
-                            onClick={() => setMobileOpen(false)}
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            title={collapsed ? "Logout" : undefined}
+                            className="flex w-full items-center justify-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50"
                         >
-                            <span className="w-6 text-center text-lg">↗</span>
-                            {!collapsed && <span>Continue shopping</span>}
-                        </Link>
+                            <span aria-hidden="true">↪</span>
+
+                            {!collapsed && <span>Logout</span>}
+                        </button>
                     </div>
                 </aside>
 
+                {/* Customer page content */}
                 <div
-                    className={`min-h-screen transition-[padding] duration-200 ${collapsed ? "lg:pl-[76px]" : "lg:pl-64"
-                        }`}
+                    className={`min-h-screen transition-all duration-200 ${sidebarWidth}`}
                 >
-                    <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-gray-200 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
-                        <div className="flex min-w-0 items-center gap-3">
-                            <button
-                                onClick={() => setMobileOpen(true)}
-                                className="rounded-lg border border-gray-200 p-2 text-gray-700 hover:bg-gray-100 lg:hidden"
-                                aria-label="Open navigation"
-                            >
-                                ☰
-                            </button>
+                    {/* Mobile sidebar trigger */}
+                    <div className="sticky top-16 z-30 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 lg:hidden">
+                        <button
+                            type="button"
+                            onClick={() => setMobileOpen(true)}
+                            aria-label="Open customer navigation"
+                            className="rounded-lg border border-gray-200 px-3 py-2 text-gray-700 hover:bg-gray-100"
+                        >
+                            ☰
+                        </button>
 
-                            <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-gray-900">
-                                    {pathname === "/account"
-                                        ? "Dashboard"
-                                        : pathname.startsWith("/account/orders")
-                                            ? "My Orders"
-                                            : pathname.startsWith("/wishlist")
-                                                ? "Wishlist"
-                                                : "My Account"}
-                                </p>
-                                <p className="hidden text-xs text-gray-500 sm:block">
-                                    Amazon Product Listing
-                                </p>
-                            </div>
-                        </div>
+                        <span className="font-semibold text-gray-900">
+                            My Account
+                        </span>
+                    </div>
 
-                        <div className="flex items-center gap-3">
-                            <div className="hidden text-right sm:block">
-                                <p className="max-w-48 truncate text-sm font-semibold text-gray-900">
-                                    {customerName}
-                                </p>
-                                <p className="text-xs text-green-700">Customer</p>
-                            </div>
-
-                            <button
-                                onClick={handleLogout}
-                                className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                            >
-                                Log out
-                            </button>
-                        </div>
-                    </header>
-
-                    <main className="p-4 sm:p-6 lg:p-8">{children}</main>
+                    <main className="min-w-0 p-4 sm:p-6 lg:p-8">
+                        {children}
+                    </main>
                 </div>
             </div>
         </SidebarContext.Provider>
