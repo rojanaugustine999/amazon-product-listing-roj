@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -94,7 +95,9 @@ export default function Navbar() {
     // Synchronize search with URL navigation.
     useEffect(() => {
         const syncSearch = () => {
-            const params = new URLSearchParams(window.location.search);
+            const params = new URLSearchParams(
+                window.location.search
+            );
             setSearch(params.get("search") ?? "");
         };
 
@@ -109,7 +112,9 @@ export default function Navbar() {
     const handleSearch = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        const params = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams(
+            window.location.search
+        );
         const trimmedSearch = search.trim();
 
         if (trimmedSearch) {
@@ -127,7 +132,9 @@ export default function Navbar() {
     const handleClearSearch = () => {
         setSearch("");
 
-        const params = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams(
+            window.location.search
+        );
         params.delete("search");
         params.delete("page");
 
@@ -260,14 +267,15 @@ export default function Navbar() {
 
     return (
         <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white">
-            <nav className="flex min-h-16 w-full items-center gap-3 px-3 py-3 sm:px-5 lg:flex-nowrap lg:px-6">
+
+            <nav className="flex min-h-16 w-full flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:px-5 sm:py-3 lg:flex-nowrap lg:gap-3 lg:px-6">
                 {/* Sidebar toggle button */}
                 <button
                     type="button"
                     onClick={handleToggleFilters}
                     aria-label={menuLabel}
                     title={menuLabel}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-800 transition hover:bg-gray-100"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-800 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400"
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -281,15 +289,8 @@ export default function Navbar() {
                         strokeLinejoin="round"
                         aria-hidden="true"
                     >
-                        <rect
-                            x="3"
-                            y="4"
-                            width="18"
-                            height="16"
-                            rx="2"
-                        />
+                        <rect x="3" y="4" width="18" height="16" rx="2" />
                         <path d="M9 4v16" />
-
                         {isCustomerPage ? (
                             customerSidebarCollapsed ? (
                                 <path d="m13 9 3 3-3 3" />
@@ -307,27 +308,25 @@ export default function Navbar() {
                 {/* Amazon logo */}
                 <Link
                     href="/"
-                    className="shrink-0 text-2xl font-bold tracking-tight text-gray-950"
+                    className="shrink-0 text-xl font-bold tracking-tight text-gray-950 sm:text-2xl"
                 >
                     Amazon
                 </Link>
 
-                {/* Search bar */}
+                {/* Search: second row on mobile, center on desktop */}
                 <form
                     onSubmit={handleSearch}
                     role="search"
-                    className="order-3 w-full min-w-0 lg:order-none lg:flex-1"
+                    className="order-3 w-full min-w-0 basis-full lg:order-none lg:flex-1"
                 >
-                    <div className="flex overflow-hidden rounded-xl border border-gray-300 bg-gray-50 transition focus-within:border-gray-500 focus-within:ring-2 focus-within:ring-gray-200">
+                    <div className="flex min-w-0 overflow-hidden rounded-xl border border-gray-300 bg-gray-50 transition focus-within:border-gray-500 focus-within:ring-2 focus-within:ring-gray-200">
                         <input
                             type="search"
                             value={search}
-                            onChange={(event) =>
-                                setSearch(event.target.value)
-                            }
+                            onChange={(event) => setSearch(event.target.value)}
                             placeholder="Search products..."
                             aria-label="Search products"
-                            className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm outline-none"
+                            className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none sm:px-4"
                         />
 
                         {search && (
@@ -335,7 +334,7 @@ export default function Navbar() {
                                 type="button"
                                 onClick={handleClearSearch}
                                 aria-label="Clear search"
-                                className="px-3 text-gray-500 hover:text-gray-900"
+                                className="shrink-0 px-3 text-gray-500 hover:text-gray-900"
                             >
                                 ×
                             </button>
@@ -344,7 +343,7 @@ export default function Navbar() {
                         <button
                             type="submit"
                             aria-label="Submit search"
-                            className="bg-yellow-400 px-5 text-gray-950 transition hover:bg-yellow-500"
+                            className="shrink-0 bg-black px-4 text-white transition hover:bg-gray-800 sm:px-5"
                         >
                             <span aria-hidden="true">⌕</span>
                             <span className="sr-only">Search</span>
@@ -353,22 +352,24 @@ export default function Navbar() {
                 </form>
 
                 {/* Account and shopping actions */}
-                <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+                <div className="order-2 ml-auto flex max-w-full min-w-0 items-center gap-1 overflow-x-auto pb-0.5 sm:gap-2 lg:order-none lg:ml-0 lg:shrink-0 lg:overflow-visible">
                     {!loading && user && role === "admin" && (
                         <Link
                             href="/admin/orders"
-                            className="whitespace-nowrap rounded-full bg-orange-100 px-3 py-2 text-sm font-semibold text-orange-800 transition hover:bg-orange-200"
+                            className="shrink-0 whitespace-nowrap rounded-full bg-orange-100 px-2 py-2 text-xs font-semibold text-orange-800 transition hover:bg-orange-200 sm:px-3 sm:text-sm"
                         >
-                            Admin Orders
+                            <span className="sm:hidden">Admin</span>
+                            <span className="hidden sm:inline">Admin Orders</span>
                         </Link>
                     )}
 
                     {!loading && user && (
                         <Link
                             href="/account"
-                            className="whitespace-nowrap rounded-full border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50"
+                            className="shrink-0 whitespace-nowrap rounded-full border border-gray-200 px-2 py-2 text-xs font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 sm:px-3 sm:text-sm"
                         >
-                            My Account
+                            <span className="sm:hidden">Account</span>
+                            <span className="hidden sm:inline">My Account</span>
                         </Link>
                     )}
 
@@ -377,37 +378,52 @@ export default function Navbar() {
                             type="button"
                             onClick={handleLogout}
                             disabled={loggingOut}
-                            className="whitespace-nowrap rounded-full border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="shrink-0 whitespace-nowrap rounded-full border border-gray-200 px-2 py-2 text-xs font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 sm:text-sm"
                         >
-                            {loggingOut ? "Logging out..." : "Logout"}
+                            {loggingOut ? (
+                                <span>...</span>
+                            ) : (
+                                <>
+                                    <span className="sm:hidden">Exit</span>
+                                    <span className="hidden sm:inline">Logout</span>
+                                </>
+                            )}
                         </button>
                     )}
 
                     <Link
                         href="/wishlist"
-                        className="whitespace-nowrap rounded-full border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50"
+                        aria-label={`Wishlist, ${wishlistCount} items`}
+                        className="shrink-0 whitespace-nowrap rounded-full border border-gray-200 px-2 py-2 text-xs font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 sm:px-3 sm:text-sm"
                     >
                         <span className="text-red-500">♥</span>{" "}
-                        Wishlist ({wishlistCount})
+                        <span className="sm:hidden">{wishlistCount}</span>
+                        <span className="hidden sm:inline">
+                            Wishlist ({wishlistCount})
+                        </span>
                     </Link>
 
                     <Link
                         href="/cart"
-                        className="whitespace-nowrap rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800"
+                        aria-label={`Cart, ${cartCount} items`}
+                        className="shrink-0 whitespace-nowrap rounded-full bg-black px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-gray-800 sm:px-4 sm:py-2.5 sm:text-sm"
                     >
-                        🛒 Cart ({cartCount})
+                        <span aria-hidden="true">🛒</span>{" "}
+                        <span className="sm:hidden">{cartCount}</span>
+                        <span className="hidden sm:inline">Cart ({cartCount})</span>
                     </Link>
 
                     {!loading && !user && (
                         <Link
                             href="/login"
-                            className="whitespace-nowrap rounded-full border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50"
+                            className="shrink-0 whitespace-nowrap rounded-full border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 sm:text-sm"
                         >
                             Login
                         </Link>
                     )}
                 </div>
             </nav>
+
         </header>
     );
 }

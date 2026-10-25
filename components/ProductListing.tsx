@@ -41,7 +41,6 @@ function ProductListingContent({ products }: ProductListingProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    // Shared sidebar state controlled by the Navbar.
     const {
         sidebarExpanded,
         mobileFiltersOpen,
@@ -150,6 +149,7 @@ function ProductListingContent({ products }: ProductListingProps) {
             ? Math.floor(requestedPage)
             : 1;
 
+    // Categories are generated from the currently loaded products.
     const categories = useMemo(
         () => [
             "All",
@@ -158,6 +158,7 @@ function ProductListingContent({ products }: ProductListingProps) {
         [storeProducts]
     );
 
+    // Search, category, and price filtering.
     const filteredProducts = useMemo(() => {
         const normalizedSearch = searchFromUrl.trim().toLowerCase();
 
@@ -182,6 +183,7 @@ function ProductListingContent({ products }: ProductListingProps) {
         });
     }, [storeProducts, searchFromUrl, categoryFromUrl, priceFromUrl]);
 
+    // Sorting.
     const sortedProducts = useMemo(() => {
         const result = [...filteredProducts];
 
@@ -203,15 +205,20 @@ function ProductListingContent({ products }: ProductListingProps) {
         }
     }, [filteredProducts, sortFromUrl]);
 
-    const totalPages = Math.ceil(sortedProducts.length / PRODUCTS_PER_PAGE);
+    // Pagination.
+    const totalPages = Math.ceil(
+        sortedProducts.length / PRODUCTS_PER_PAGE
+    );
 
     const safePage =
         totalPages > 0 ? Math.min(currentPage, totalPages) : 1;
 
-    // Correct an invalid page after filters change.
     useEffect(() => {
         if (currentPage !== safePage) {
-            updateSearchParams("page", safePage > 1 ? String(safePage) : "");
+            updateSearchParams(
+                "page",
+                safePage > 1 ? String(safePage) : ""
+            );
         }
     }, [currentPage, safePage, updateSearchParams]);
 
@@ -236,10 +243,13 @@ function ProductListingContent({ products }: ProductListingProps) {
                     ? "₹4000+"
                     : "All";
 
+    // Shared filter panel for desktop sidebar and mobile drawer.
     const filterPanel = (
         <div className="space-y-0">
             <div className="flex items-center justify-between gap-3 pb-4">
-                <h2 className="text-base font-bold text-gray-950">Filters</h2>
+                <h2 className="text-base font-bold text-gray-950">
+                    Filters
+                </h2>
 
                 <button
                     type="button"
@@ -353,7 +363,10 @@ function ProductListingContent({ products }: ProductListingProps) {
         <main className="min-h-screen overflow-x-clip bg-gray-50">
             <div className="mx-auto w-full max-w-[1800px] px-3 py-5 sm:px-5 lg:px-8">
                 {productsLoading && (
-                    <p className="mb-4 text-sm text-gray-500" role="status">
+                    <p
+                        className="mb-4 text-sm text-gray-500"
+                        role="status"
+                    >
                         Refreshing products…
                     </p>
                 )}
@@ -401,7 +414,7 @@ function ProductListingContent({ products }: ProductListingProps) {
                             </span>
                         )}
 
-                        {/* Mobile shortcut; the header menu also opens this drawer. */}
+                        {/* Mobile filter shortcut */}
                         <button
                             type="button"
                             onClick={() => setMobileFiltersOpen(true)}
@@ -420,7 +433,7 @@ function ProductListingContent({ products }: ProductListingProps) {
                     </div>
                 </div>
 
-                {/* Desktop sidebar and product grid */}
+                {/* Desktop sidebar and responsive product grid */}
                 <div className="flex min-w-0 items-start gap-4 xl:gap-5">
                     {sidebarExpanded && (
                         <aside className="sticky top-20 hidden max-h-[calc(100vh-6rem)] w-56 shrink-0 self-start overflow-y-auto rounded-xl border border-gray-200 bg-white p-4 shadow-sm lg:block xl:w-64 2xl:w-72">
@@ -437,7 +450,9 @@ function ProductListingContent({ products }: ProductListingProps) {
                                     {categoryFromUrl !== "All" && (
                                         <button
                                             type="button"
-                                            onClick={() => updateSearchParams("category", "")}
+                                            onClick={() =>
+                                                updateSearchParams("category", "")
+                                            }
                                             className="rounded-full border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
                                         >
                                             {categoryFromUrl} ×
@@ -447,7 +462,9 @@ function ProductListingContent({ products }: ProductListingProps) {
                                     {priceFromUrl !== "All" && (
                                         <button
                                             type="button"
-                                            onClick={() => updateSearchParams("price", "")}
+                                            onClick={() =>
+                                                updateSearchParams("price", "")
+                                            }
                                             className="rounded-full border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
                                         >
                                             {selectedPrice} ×
@@ -457,7 +474,9 @@ function ProductListingContent({ products }: ProductListingProps) {
                                     {sortFromUrl !== "default" && (
                                         <button
                                             type="button"
-                                            onClick={() => updateSearchParams("sort", "")}
+                                            onClick={() =>
+                                                updateSearchParams("sort", "")
+                                            }
                                             className="rounded-full border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
                                         >
                                             Sort applied ×
@@ -475,15 +494,20 @@ function ProductListingContent({ products }: ProductListingProps) {
                             )}
 
                         {paginatedProducts.length > 0 ? (
-                            <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                            <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-3">
                                 {paginatedProducts.map((product) => (
-                                    <ProductCard key={product.id} product={product} />
+                                    <ProductCard
+                                        key={product.id}
+                                        product={product}
+                                    />
                                 ))}
                             </div>
                         ) : (
                             <div className="rounded-xl border border-gray-200 bg-white px-4 py-12 text-center">
                                 <p className="text-lg font-semibold text-gray-800">
-                                    {productsLoading ? "Loading products…" : "No products found"}
+                                    {productsLoading
+                                        ? "Loading products…"
+                                        : "No products found"}
                                 </p>
 
                                 <p className="mt-2 text-sm text-gray-600">
@@ -506,7 +530,10 @@ function ProductListingContent({ products }: ProductListingProps) {
                                     currentPage={safePage}
                                     totalPages={totalPages}
                                     onPageChange={(page: number) =>
-                                        updateSearchParams("page", String(page))
+                                        updateSearchParams(
+                                            "page",
+                                            String(page)
+                                        )
                                     }
                                 />
                             </div>
@@ -548,7 +575,7 @@ function ProductListingContent({ products }: ProductListingProps) {
 
                         {filterPanel}
 
-                        <div className="sticky bottom-0 mt-6 flex gap-3 border-t border-gray-200 bg-white py-4">
+                        <div className="sticky bottom-0 mt-6 flex shrink-0 gap-3 border-t border-gray-200 bg-white py-4">
                             <button
                                 type="button"
                                 onClick={clearFilters}
@@ -580,10 +607,13 @@ export default function ProductListing({
         <Suspense
             fallback={
                 <main className="min-h-screen bg-gray-50 px-4 py-8">
-                    <div className="mx-auto max-w-7xl animate-pulse" role="status">
+                    <div
+                        className="mx-auto max-w-7xl animate-pulse"
+                        role="status"
+                    >
                         <div className="mb-6 h-6 w-40 rounded bg-gray-200" />
 
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                             {Array.from({ length: 8 }).map((_, index) => (
                                 <div
                                     key={index}
