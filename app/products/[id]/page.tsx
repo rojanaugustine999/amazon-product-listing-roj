@@ -481,21 +481,40 @@ export default function ProductDetailsPage() {
                             {product.name}
                         </h1>
 
-                        {/* Rating */}
+                        {/* Rating based on saved customer reviews */}
                         <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
                             <span className="font-semibold text-gray-900">
-                                {product.rating}
+                                {customerReviewCount > 0
+                                    ? customerAverageRating.toFixed(1)
+                                    : "—"}
                             </span>
 
                             <span
                                 className="text-amber-500"
-                                aria-label="Rating"
+                                aria-label={
+                                    customerReviewCount > 0
+                                        ? `${customerAverageRating.toFixed(1)} out of 5 stars`
+                                        : "No customer ratings yet"
+                                }
                             >
-                                ★★★★★
+                                {"★".repeat(
+                                    customerReviewCount > 0
+                                        ? Math.round(customerAverageRating)
+                                        : 0
+                                )}
+                                <span className="text-gray-300">
+                                    {"★".repeat(
+                                        5 -
+                                        (customerReviewCount > 0
+                                            ? Math.round(customerAverageRating)
+                                            : 0)
+                                    )}
+                                </span>
                             </span>
 
                             <span className="text-gray-500">
-                                ({product.reviews.toLocaleString("en-IN")} reviews)
+                                ({customerReviewCount.toLocaleString("en-IN")} customer{" "}
+                                {customerReviewCount === 1 ? "review" : "reviews"})
                             </span>
                         </div>
 
@@ -889,21 +908,24 @@ export default function ProductDetailsPage() {
 
                         <div className="rounded-lg bg-gray-50 p-4">
                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Rating
+                                Customer rating
                             </p>
 
                             <p className="mt-1 text-sm font-medium text-gray-900">
-                                ★ {product.rating} out of 5
+                                {customerReviewCount > 0
+                                    ? `★ ${customerAverageRating.toFixed(1)} out of 5`
+                                    : "No customer ratings yet"}
                             </p>
                         </div>
 
                         <div className="rounded-lg bg-gray-50 p-4">
                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Reviews
+                                Customer reviews
                             </p>
 
                             <p className="mt-1 text-sm font-medium text-gray-900">
-                                {product.reviews.toLocaleString("en-IN")} reviews
+                                {customerReviewCount.toLocaleString("en-IN")}{" "}
+                                {customerReviewCount === 1 ? "review" : "reviews"}
                             </p>
                         </div>
                     </div>
