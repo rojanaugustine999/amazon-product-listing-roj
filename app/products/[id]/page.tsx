@@ -18,6 +18,7 @@ type CustomerReview = {
     rating: number;
     date: string;
     comment: string;
+    verifiedPurchase: boolean;
 };
 
 type SupabaseReview = {
@@ -26,6 +27,7 @@ type SupabaseReview = {
     rating: number;
     comment: string;
     created_at: string;
+    verified_purchase: boolean;
 };
 
 type SupabaseProduct = {
@@ -148,7 +150,7 @@ export default function ProductDetailsPage() {
                 const supabase = createClient();
                 const { data, error: reviewsError } = await supabase
                     .from("product_reviews")
-                    .select("id, customer_name, rating, comment, created_at")
+                    .select("id, customer_name, rating, comment, created_at, verified_purchase")
                     .eq("product_id", id)
                     .order("created_at", { ascending: false });
 
@@ -166,6 +168,7 @@ export default function ProductDetailsPage() {
                             year: "numeric",
                         }),
                         comment: review.comment,
+                        verifiedPurchase: Boolean(review.verified_purchase),
                     })));
                 }
             } catch (err) {
@@ -367,7 +370,7 @@ export default function ProductDetailsPage() {
                     rating: reviewRating,
                     comment,
                 })
-                .select("id, customer_name, rating, comment, created_at")
+                .select("id, customer_name, rating, comment, created_at, verified_purchase")
                 .single();
 
             if (insertError) throw insertError;
@@ -387,6 +390,7 @@ export default function ProductDetailsPage() {
                     year: "numeric",
                 }),
                 comment: savedReview.comment,
+                verifiedPurchase: Boolean(savedReview.verified_purchase),
             };
 
             setSubmittedReviews((current) => [newReview, ...current]);
@@ -767,9 +771,15 @@ export default function ProductDetailsPage() {
                                         <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">
                                             {review.comment}
                                         </p>
-                                        <span className="mt-3 inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                                            Saved review
-                                        </span>
+                                        {review.verifiedPurchase ? (
+                                            <span className="mt-3 inline-flex rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                                                ✓ Verified Purchase
+                                            </span>
+                                        ) : (
+                                            <span className="mt-3 inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+                                                Customer review
+                                            </span>
+                                        )}
                                     </article>
                                 ))}
 

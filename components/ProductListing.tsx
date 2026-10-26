@@ -361,7 +361,7 @@ function ProductListingContent({ products }: ProductListingProps) {
 
     return (
         <main className="min-h-screen overflow-x-clip bg-gray-50">
-            <div className="mx-auto w-full max-w-[1800px] px-3 py-5 sm:px-5 lg:px-8">
+            <div className="w-full px-0 py-5">
                 {productsLoading && (
                     <p
                         className="mb-4 text-sm text-gray-500"
