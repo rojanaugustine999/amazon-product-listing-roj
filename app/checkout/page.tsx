@@ -6,6 +6,73 @@ import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { createClient } from "@/lib/supabase/client";
 
+
+type RazorpaySuccessResponse = {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+};
+
+type RazorpayOptions = {
+    key: string;
+    amount: number;
+    currency: string;
+    name: string;
+    description: string;
+    order_id: string;
+    prefill: {
+        name: string;
+        email: string;
+        contact: string;
+    };
+    handler: (response: RazorpaySuccessResponse) => void | Promise<void>;
+    modal: {
+        ondismiss: () => void;
+    };
+};
+
+declare global {
+    interface Window {
+        Razorpay?: new (
+            options: RazorpayOptions
+        ) => {
+            open: () => void;
+        };
+    }
+}
+
+function loadRazorpayScript(): Promise<boolean> {
+    return new Promise((resolve) => {
+        if (window.Razorpay) {
+            resolve(true);
+            return;
+        }
+
+        const scriptUrl = "https://checkout.razorpay.com/v1/checkout.js";
+        const existingScript = document.querySelector(
+            `script[src="${scriptUrl}"]`
+        ) as HTMLScriptElement | null;
+
+        if (existingScript) {
+            existingScript.addEventListener("load", () =>
+                resolve(Boolean(window.Razorpay)),
+                { once: true }
+            );
+            existingScript.addEventListener("error", () => resolve(false), {
+                once: true,
+            });
+            return;
+        }
+
+        const script = document.createElement("script");
+        script.src = scriptUrl;
+        script.async = true;
+        script.onload = () => resolve(Boolean(window.Razorpay));
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+    });
+}
+
 export default function CheckoutPage() {
     const [isPlacingOrder, setIsPlacingOrder] = useState(false);
     const router = useRouter();
@@ -40,6 +107,133 @@ export default function CheckoutPage() {
     const formatPrice = (price: number) =>
         `₹${price.toLocaleString("en-IN")}`;
 
+
+    const startRazorpayPayment = async (
+        method: "upi" | "card"
+    ): Promise<void> => {
+        const scriptLoaded = await loadRazorpayScript();
+
+        if (!scriptLoaded || !window.Razorpay) {
+            throw new Error(
+                "Could not load Razorpay Checkout. Please check your internet connection and try again."
+            );
+        }
+
+        const orderResponse = await fetch("/api/razorpay/order", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                items: cartItems.map((item) => ({
+                    id: item.id,
+                    quantity: item.quantity,
+                })),
+                paymentMethod: method,
+                shipping: {
+                    fullName: formData.fullName.trim(),
+                    email: formData.email.trim(),
+                    phone: formData.phone,
+                    address: formData.address.trim(),
+                    city: formData.city.trim(),
+                    state: formData.state.trim(),
+                    pinCode: formData.pinCode.trim(),
+                },
+            }),
+        });
+
+        const orderData = await orderResponse.json();
+
+        if (!orderResponse.ok) {
+            throw new Error(
+                orderData.error || "Could not create the payment order."
+            );
+        }
+
+        if (
+            !orderData.orderId ||
+            !orderData.razorpayOrderId ||
+            !orderData.keyId ||
+            !Number.isSafeInteger(orderData.amount) ||
+            orderData.amount <= 0 ||
+            orderData.currency !== "INR"
+        ) {
+            throw new Error("The server returned an invalid payment order.");
+        }
+
+        await new Promise<void>((resolve, reject) => {
+            let completed = false;
+
+            const fail = (message: string) => {
+                if (completed) return;
+                completed = true;
+                reject(new Error(message));
+            };
+
+            const checkout = new window.Razorpay!({
+                key: orderData.keyId,
+                amount: orderData.amount,
+                currency: orderData.currency,
+                name: "Amazon Product Listing",
+                description: "Product purchase",
+                order_id: orderData.razorpayOrderId,
+                prefill: {
+                    name: formData.fullName.trim(),
+                    email: formData.email.trim(),
+                    contact: formData.phone,
+                },
+                handler: async (response) => {
+                    try {
+                        const verifyResponse = await fetch(
+                            "/api/razorpay/verify",
+                            {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                    orderId: orderData.orderId,
+                                    razorpay_order_id:
+                                        response.razorpay_order_id,
+                                    razorpay_payment_id:
+                                        response.razorpay_payment_id,
+                                    razorpay_signature:
+                                        response.razorpay_signature,
+                                }),
+                            }
+                        );
+
+                        const verifyData = await verifyResponse.json();
+
+                        if (!verifyResponse.ok || !verifyData.success) {
+                            fail(
+                                verifyData.error ||
+                                "We could not confirm the payment. Check your order status before trying to pay again."
+                            );
+                            return;
+                        }
+
+                        if (completed) return;
+                        completed = true;
+                        resolve();
+                    } catch {
+                        fail(
+                            "Payment may have succeeded, but confirmation could not be completed. Check your order status before trying to pay again."
+                        );
+                    }
+                },
+                modal: {
+                    ondismiss: () => {
+                        fail(
+                            "Payment window closed. Your order may still be pending; check its status before retrying."
+                        );
+                    },
+                },
+            });
+
+            checkout.open();
+        });
+    };
 
     const handlePlaceOrder = async () => {
         if (isPlacingOrder) return;
@@ -102,6 +296,15 @@ export default function CheckoutPage() {
 
             if (authError || !user) {
                 setError("Please log in before placing your order.");
+                return;
+            }
+
+            // Online payments create the order and its items through the
+            // server-side Razorpay API. Keep the existing COD flow below.
+            if (paymentMethod === "upi" || paymentMethod === "card") {
+                await startRazorpayPayment(paymentMethod);
+                clearCart();
+                router.push("/order-success");
                 return;
             }
 
@@ -483,7 +686,7 @@ export default function CheckoutPage() {
                         </button>
 
                         <p className="mt-3 text-center text-xs leading-5 text-gray-500">
-                            Demo checkout only. No actual payment is processed.
+                            Razorpay Test Mode is for simulated payments only. COD remains available.
                         </p>
                     </aside>
                 </div>
