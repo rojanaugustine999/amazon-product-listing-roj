@@ -170,6 +170,34 @@ export async function POST(request: Request) {
 
         const total = Number((totalPaise / 100).toFixed(2));
 
+        const keyId = process.env.RAZORPAY_KEY_ID;
+        const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+        if (!keyId || !keySecret) {
+            throw new Error("Razorpay test keys are not configured.");
+        }
+
+        const razorpay = new Razorpay({
+            key_id: keyId,
+            key_secret: keySecret,
+        });
+
+        const receipt = `rcpt_${user.id.replace(/-/g, "").slice(0, 10)}_${Date.now()}`.slice(0, 40);
+
+        const razorpayOrder = await razorpay.orders.create({
+            amount: totalPaise,
+            currency: "INR",
+            receipt,
+            notes: {
+                user_id: user.id,
+            },
+        });
+
+        console.log("[DIAGNOSTIC] Razorpay order creation result:", {
+            success: Boolean(razorpayOrder?.id),
+            razorpayOrderId: razorpayOrder.id,
+        });
+
         const { data: order, error: orderError } = await supabase
             .from("orders")
             .insert({
@@ -189,6 +217,7 @@ export async function POST(request: Request) {
                 ].join(", "),
                 payment_method: paymentMethod,
                 payment_status: "unpaid",
+                razorpay_order_id: razorpayOrder.id,
             })
             .select("id")
             .single();
@@ -216,61 +245,10 @@ export async function POST(request: Request) {
             );
         }
 
-        const keyId = process.env.RAZORPAY_KEY_ID;
-        const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
-        if (!keyId || !keySecret) {
-            throw new Error("Razorpay test keys are not configured.");
-        }
-
-        const razorpay = new Razorpay({
-            key_id: keyId,
-            key_secret: keySecret,
-        });
-
-        const razorpayOrder = await razorpay.orders.create({
-            amount: totalPaise,
-            currency: "INR",
-            receipt: `order_${order.id.replace(/-/g, "").slice(0, 30)}`,
-            notes: {
-                supabase_order_id: order.id,
-                user_id: user.id,
-            },
-        });
-
-        console.log("[DIAGNOSTIC] Razorpay order creation result:", {
-            success: Boolean(razorpayOrder?.id),
+        console.log("[DIAGNOSTIC] Order and items created successfully:", {
+            supabaseOrderId: order.id,
             razorpayOrderId: razorpayOrder.id,
-            supabaseOrderId: order.id,
         });
-
-        const { data: updatedRows, error: updateError } = await supabase
-            .from("orders")
-            .update({ razorpay_order_id: razorpayOrder.id })
-            .eq("id", order.id)
-            .eq("user_id", user.id)
-            .select("id");
-
-        const rowsUpdated = updatedRows ? updatedRows.length : 0;
-        console.log("[DIAGNOSTIC] Supabase update razorpay_order_id result:", {
-            supabaseOrderId: order.id,
-            success: !updateError && rowsUpdated === 1,
-            rowsUpdated,
-            hasError: Boolean(updateError),
-            errorMessage: updateError?.message ?? null,
-        });
-
-        if (updateError) {
-            throw new Error(
-                `Could not link payment to order: ${updateError.message}`
-            );
-        }
-
-        if (rowsUpdated !== 1) {
-            throw new Error(
-                `Could not link payment to order: expected exactly 1 row updated, but ${rowsUpdated} rows were updated.`
-            );
-        }
 
         return NextResponse.json({
             orderId: order.id,
