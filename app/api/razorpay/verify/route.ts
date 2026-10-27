@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+    console.log("[DIAGNOSTIC] Razorpay verify endpoint called");
     try {
         const supabase = await createClient();
 
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
         } = await supabase.auth.getUser();
 
         if (authError || !user) {
+            console.warn("[DIAGNOSTIC] Verification failed: stage=auth_check, status=401");
             return NextResponse.json(
                 { error: "Please log in to verify payment." },
                 { status: 401 }
@@ -38,6 +40,7 @@ export async function POST(request: Request) {
             !/^order_[a-zA-Z0-9]+$/.test(razorpayOrderId) ||
             !/^[a-f0-9]{64}$/i.test(razorpaySignature)
         ) {
+            console.warn("[DIAGNOSTIC] Verification failed: stage=payload_validation, status=400");
             return NextResponse.json(
                 { error: "Invalid payment verification details." },
                 { status: 400 }
@@ -48,6 +51,7 @@ export async function POST(request: Request) {
         const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
         if (!keyId || !keySecret) {
+            console.error("[DIAGNOSTIC] Verification failed: stage=config_missing, status=500");
             return NextResponse.json(
                 { error: "Payment configuration is missing." },
                 { status: 500 }
@@ -68,6 +72,7 @@ export async function POST(request: Request) {
             expectedSignature.length !== receivedSignature.length ||
             !timingSafeEqual(expectedSignature, receivedSignature)
         ) {
+            console.warn("[DIAGNOSTIC] Verification failed: stage=signature_verification, status=400");
             return NextResponse.json(
                 { error: "Payment signature verification failed." },
                 { status: 400 }
@@ -85,7 +90,7 @@ export async function POST(request: Request) {
             .maybeSingle();
 
         if (orderError) {
-            console.error("Order lookup failed:", orderError.message);
+            console.error("[DIAGNOSTIC] Verification failed: stage=order_lookup_error, status=500, message=", orderError.message);
 
             return NextResponse.json(
                 { error: "Could not verify the order." },
@@ -94,6 +99,7 @@ export async function POST(request: Request) {
         }
 
         if (!order) {
+            console.warn("[DIAGNOSTIC] Verification failed: stage=order_not_found, status=404");
             return NextResponse.json(
                 { error: "Order not found." },
                 { status: 404 }
@@ -101,6 +107,10 @@ export async function POST(request: Request) {
         }
 
         if (order.razorpay_order_id !== razorpayOrderId) {
+            console.warn("[DIAGNOSTIC] Verification failed: stage=order_id_mismatch, status=400", {
+                expectedRazorpayOrderId: order.razorpay_order_id,
+                receivedRazorpayOrderId: razorpayOrderId,
+            });
             return NextResponse.json(
                 { error: "Payment does not match this order." },
                 { status: 400 }
@@ -110,12 +120,14 @@ export async function POST(request: Request) {
         // Allow safe retries after a successful verification.
         if (order.payment_status === "paid") {
             if (order.razorpay_payment_id === razorpayPaymentId) {
+                console.log("[DIAGNOSTIC] Verification idempotent success: stage=already_verified, status=200");
                 return NextResponse.json({
                     success: true,
                     message: "Payment was already verified.",
                 });
             }
 
+            console.warn("[DIAGNOSTIC] Verification failed: stage=already_paid_mismatched_payment_id, status=409");
             return NextResponse.json(
                 { error: "This order has already been paid." },
                 { status: 409 }
@@ -125,6 +137,7 @@ export async function POST(request: Request) {
         if (
             !["unpaid", "pending"].includes(order.payment_status)
         ) {
+            console.warn("[DIAGNOSTIC] Verification failed: stage=invalid_payment_status, status=409, currentStatus=", order.payment_status);
             return NextResponse.json(
                 { error: "This order is not awaiting payment." },
                 { status: 409 }
@@ -147,6 +160,7 @@ export async function POST(request: Request) {
             payment.currency !== "INR" ||
             order.currency !== "INR"
         ) {
+            console.warn("[DIAGNOSTIC] Verification failed: stage=payment_fetch_mismatch, status=400");
             return NextResponse.json(
                 { error: "Payment details do not match the order." },
                 { status: 400 }
@@ -154,6 +168,7 @@ export async function POST(request: Request) {
         }
 
         if (payment.status !== "captured") {
+            console.warn("[DIAGNOSTIC] Verification failed: stage=payment_not_captured, status=409, paymentStatus=", payment.status);
             return NextResponse.json(
                 {
                     error:
@@ -178,10 +193,7 @@ export async function POST(request: Request) {
                 .maybeSingle();
 
         if (updateError) {
-            console.error(
-                "Payment status update failed:",
-                updateError.message
-            );
+            console.error("[DIAGNOSTIC] Verification failed: stage=order_update_error, status=500, message=", updateError.message);
 
             return NextResponse.json(
                 {
@@ -193,6 +205,7 @@ export async function POST(request: Request) {
         }
 
         if (!updatedOrder) {
+            console.warn("[DIAGNOSTIC] Verification failed: stage=order_update_zero_rows, status=409");
             return NextResponse.json(
                 {
                     error:
@@ -202,13 +215,14 @@ export async function POST(request: Request) {
             );
         }
 
+        console.log("[DIAGNOSTIC] Verification succeeded: stage=completed, status=200, orderId=", updatedOrder.id);
         return NextResponse.json({
             success: true,
             message: "Payment verified successfully.",
             orderId: updatedOrder.id,
         });
     } catch (error) {
-        console.error("Payment verification failed:", error);
+        console.error("[DIAGNOSTIC] Verification failed: stage=exception, status=500, error=", error instanceof Error ? error.message : "Unknown error");
 
         return NextResponse.json(
             { error: "Could not verify payment. Please try again." },

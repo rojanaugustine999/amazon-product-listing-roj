@@ -238,15 +238,37 @@ export async function POST(request: Request) {
             },
         });
 
-        const { error: updateError } = await supabase
+        console.log("[DIAGNOSTIC] Razorpay order creation result:", {
+            success: Boolean(razorpayOrder?.id),
+            razorpayOrderId: razorpayOrder.id,
+            supabaseOrderId: order.id,
+        });
+
+        const { data: updatedRows, error: updateError } = await supabase
             .from("orders")
             .update({ razorpay_order_id: razorpayOrder.id })
             .eq("id", order.id)
-            .eq("user_id", user.id);
+            .eq("user_id", user.id)
+            .select("id");
+
+        const rowsUpdated = updatedRows ? updatedRows.length : 0;
+        console.log("[DIAGNOSTIC] Supabase update razorpay_order_id result:", {
+            supabaseOrderId: order.id,
+            success: !updateError && rowsUpdated === 1,
+            rowsUpdated,
+            hasError: Boolean(updateError),
+            errorMessage: updateError?.message ?? null,
+        });
 
         if (updateError) {
             throw new Error(
                 `Could not link payment to order: ${updateError.message}`
+            );
+        }
+
+        if (rowsUpdated !== 1) {
+            throw new Error(
+                `Could not link payment to order: expected exactly 1 row updated, but ${rowsUpdated} rows were updated.`
             );
         }
 
