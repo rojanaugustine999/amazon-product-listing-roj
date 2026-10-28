@@ -22,6 +22,7 @@ const menuItems: MenuItem[] = [
     { label: "Dashboard", href: "/admin", icon: "▦" },
     { label: "Orders", href: "/admin/orders", icon: "📦" },
     { label: "Products", href: "/admin/products", icon: "🛍️" },
+    { label: "Users", href: "/admin/users", icon: "👥" },
 ];
 
 
@@ -308,7 +309,9 @@ export default function AdminLayout({
                                             ? "Order Management"
                                             : pathname.startsWith("/admin/products")
                                                 ? "Product Management"
-                                                : "Administration"}
+                                                : pathname.startsWith("/admin/users")
+                                                    ? "User Management"
+                                                    : "Administration"}
                                 </p>
                                 <p className="hidden text-xs text-gray-500 sm:block">
                                     Amazon Product Listing

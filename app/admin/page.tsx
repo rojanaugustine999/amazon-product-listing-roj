@@ -35,6 +35,22 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                    <p className="text-sm text-gray-500">User Management</p>
+                    <h2 className="mt-3 text-xl font-bold text-gray-900">
+                        Manage Users
+                    </h2>
+                    <p className="mt-2 text-sm text-gray-600">
+                        Review customer accounts and manage administrator roles.
+                    </p>
+                    <Link
+                        href="/admin/users"
+                        className="mt-5 inline-flex rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-700"
+                    >
+                        View Users →
+                    </Link>
+                </div>
+
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                     <p className="text-sm text-gray-500">Storefront</p>
                     <h2 className="mt-3 text-xl font-bold text-gray-900">
                         Customer Store
