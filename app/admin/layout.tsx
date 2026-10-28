@@ -45,6 +45,46 @@ export default function AdminLayout({
     const [authorized, setAuthorized] = useState(false);
     const [adminName, setAdminName] = useState("Administrator");
 
+    // Keep the top navbar icon and offset synchronized with the admin sidebar state.
+    useEffect(() => {
+        window.dispatchEvent(
+            new CustomEvent("admin-sidebar-state-change", {
+                detail: { collapsed },
+            })
+        );
+    }, [collapsed]);
+
+    // Let the top navbar toggle the admin sidebar.
+    useEffect(() => {
+        const handleAdminSidebarToggle = () => {
+            setCollapsed((current) => !current);
+        };
+
+        const handleAdminMobileToggle = () => {
+            setMobileOpen((current) => !current);
+        };
+
+        window.addEventListener(
+            "admin-sidebar-toggle",
+            handleAdminSidebarToggle
+        );
+        window.addEventListener(
+            "admin-sidebar-mobile-toggle",
+            handleAdminMobileToggle
+        );
+
+        return () => {
+            window.removeEventListener(
+                "admin-sidebar-toggle",
+                handleAdminSidebarToggle
+            );
+            window.removeEventListener(
+                "admin-sidebar-mobile-toggle",
+                handleAdminMobileToggle
+            );
+        };
+    }, []);
+
     useEffect(() => {
         let active = true;
 

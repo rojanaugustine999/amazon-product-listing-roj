@@ -35,12 +35,17 @@ export default function Navbar() {
         pathname.startsWith("/account/") ||
         pathname === "/wishlist";
 
+    const isAdminPage =
+        pathname === "/admin" || pathname.startsWith("/admin/");
+
     const [user, setUser] = useState<User | null>(null);
     const [role, setRole] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [loggingOut, setLoggingOut] = useState(false);
     const [search, setSearch] = useState("");
     const [customerSidebarCollapsed, setCustomerSidebarCollapsed] =
+        useState(false);
+    const [adminSidebarCollapsed, setAdminSidebarCollapsed] =
         useState(false);
 
     const cartCount = cartItems.reduce(
@@ -76,8 +81,47 @@ export default function Navbar() {
         };
     }, []);
 
+    // Listen for admin sidebar state changes.
+    useEffect(() => {
+        const handleAdminSidebarStateChange = (event: Event) => {
+            const customEvent =
+                event as CustomEvent<{ collapsed: boolean }>;
+
+            if (typeof customEvent.detail?.collapsed === "boolean") {
+                setAdminSidebarCollapsed(
+                    customEvent.detail.collapsed
+                );
+            }
+        };
+
+        window.addEventListener(
+            "admin-sidebar-state-change",
+            handleAdminSidebarStateChange
+        );
+
+        return () => {
+            window.removeEventListener(
+                "admin-sidebar-state-change",
+                handleAdminSidebarStateChange
+            );
+        };
+    }, []);
+
     // Toggle the appropriate sidebar.
     const handleToggleFilters = () => {
+        if (isAdminPage) {
+            if (window.matchMedia("(min-width: 1024px)").matches) {
+                window.dispatchEvent(
+                    new Event("admin-sidebar-toggle")
+                );
+            } else {
+                window.dispatchEvent(
+                    new Event("admin-sidebar-mobile-toggle")
+                );
+            }
+            return;
+        }
+
         if (isCustomerPage) {
             window.dispatchEvent(
                 new Event("customer-sidebar-toggle")
@@ -257,16 +301,26 @@ export default function Navbar() {
         }
     };
 
-    const menuLabel = isCustomerPage
-        ? customerSidebarCollapsed
-            ? "Expand customer sidebar"
-            : "Collapse customer sidebar"
-        : sidebarExpanded
-            ? "Collapse product filters"
-            : "Expand product filters";
+    const menuLabel = isAdminPage
+        ? adminSidebarCollapsed
+            ? "Expand admin sidebar"
+            : "Collapse admin sidebar"
+        : isCustomerPage
+            ? customerSidebarCollapsed
+                ? "Expand customer sidebar"
+                : "Collapse customer sidebar"
+            : sidebarExpanded
+                ? "Collapse product filters"
+                : "Expand product filters";
+
+    const adminOffsetClass = isAdminPage
+        ? adminSidebarCollapsed
+            ? "lg:pl-[76px]"
+            : "lg:pl-64"
+        : "";
 
     return (
-        <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white">
+        <header className={`sticky top-0 z-50 w-full border-b border-gray-200 bg-white transition-[padding] duration-200 ${adminOffsetClass}`}>
 
             <nav className="flex min-h-16 w-full flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:px-5 sm:py-3 lg:flex-nowrap lg:gap-3 lg:px-6">
                 {/* Sidebar toggle button */}
@@ -291,7 +345,13 @@ export default function Navbar() {
                     >
                         <rect x="3" y="4" width="18" height="16" rx="2" />
                         <path d="M9 4v16" />
-                        {isCustomerPage ? (
+                        {isAdminPage ? (
+                            adminSidebarCollapsed ? (
+                                <path d="m13 9 3 3-3 3" />
+                            ) : (
+                                <path d="m16 9-3 3 3 3" />
+                            )
+                        ) : isCustomerPage ? (
                             customerSidebarCollapsed ? (
                                 <path d="m13 9 3 3-3 3" />
                             ) : (
@@ -317,7 +377,7 @@ export default function Navbar() {
                 <form
                     onSubmit={handleSearch}
                     role="search"
-                    className="order-3 w-full min-w-0 basis-full lg:order-none lg:flex-1"
+                    className="order-3 w-full min-w-0 basis-full lg:order-none lg:flex-1 lg:min-w-[200px]"
                 >
                     <div className="flex min-w-0 overflow-hidden rounded-xl border border-gray-300 bg-gray-50 transition focus-within:border-gray-500 focus-within:ring-2 focus-within:ring-gray-200">
                         <input
