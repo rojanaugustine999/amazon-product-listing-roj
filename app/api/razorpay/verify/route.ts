@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -178,8 +179,10 @@ export async function POST(request: Request) {
             );
         }
 
+        const adminSupabase = createAdminClient();
+
         const { data: updatedOrder, error: updateError } =
-            await supabase
+            await adminSupabase
                 .from("orders")
                 .update({
                     payment_status: "paid",
