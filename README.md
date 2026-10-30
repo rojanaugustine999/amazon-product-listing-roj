@@ -1,69 +1,117 @@
 # Amazon Product Listing App
 
-A responsive e-commerce web application built with **Next.js, React, TypeScript, Tailwind CSS, and Supabase**. The application provides product browsing, search and filtering, cart and wishlist management, checkout, customer authentication, and order history.
+A responsive, full-stack e-commerce web application built with **Next.js, React, TypeScript, Tailwind CSS, and Supabase**. It demonstrates an end-to-end shopping experience, including product discovery, customer accounts, cart and wishlist management, checkout, payment integration, order history, reviews, and an admin dashboard.
 
 ## 🚀 Live Demo
 
-**Website:** https://amazon-product-listing-roj.vercel.app/
+- **Live Website:** [https://amazon-product-listing-roj.vercel.app/](https://amazon-product-listing-roj.vercel.app/)
+- **GitHub Repository:** [https://github.com/rojanaugustine999/amazon-product-listing-roj](https://github.com/rojanaugustine999/amazon-product-listing-roj)
 
-**GitHub Repository:** https://github.com/rojanaugustine999/amazon-product-listing-roj
+> **Note:** This is an independent portfolio project inspired by common e-commerce experiences. It is not affiliated with or endorsed by Amazon.
 
 ## 📸 Screenshots
 
-### Home Page
-![Home Page](screenshots/homepage.png)
+The screenshots below are stored in the repository's `screenshots/` directory. Add or replace the image files using these names so the gallery renders correctly on GitHub.
+
+### Storefront and Product Discovery
+
+![Home page and product listing](screenshots/homepage.png)
+
+### Product Details
+
+![Product details](screenshots/product-details.png)
 
 ### Shopping Cart
-![Cart Page](screenshots/cart.png)
 
-### Checkout Page
-![Checkout Page](screenshots/checkout.png)
+![Shopping cart](screenshots/cart.png)
+
+### Wishlist
+
+![Wishlist](screenshots/wishlist.png)
+
+### Checkout and Payment
+
+![Checkout page](screenshots/checkout.png)
 
 ### Customer Account and Order History
-![Account Page](screenshots/account.png)
+
+![Customer account and order history](screenshots/account.png)
+
+### Admin Dashboard
+
+![Admin dashboard](screenshots/admin-dashboard.png)
+
+### Admin User Management
+
+![Admin user management](screenshots/admin-users.png)
+
+### Product and Order Management
+
+![Admin product and order management](screenshots/admin-management.png)
 
 ## ✨ Features
 
-### Product Listing
-- Browse products and view product details.
+### Product Listing and Discovery
+
+- Browse products and view individual product details.
 - Search products by name.
 - Filter products by category and price.
-- Sort products by available sorting options.
-- Navigate through product listings using pagination.
+- Sort products using available sorting options.
+- Navigate product listings with pagination.
 - Display loading states and fallback product data.
 
 ### Shopping Cart
+
 - Add products to the cart.
 - Increase or decrease product quantities.
 - Remove products from the cart.
-- View cart item count and subtotal.
-- Validate product stock before adding or updating quantities.
+- View cart item count, subtotal, and order summary.
+- Validate available stock before adding products or changing quantities.
 - Persist cart data using browser local storage.
 
 ### Wishlist
-- Add and remove products from the wishlist.
+
+- Add products to and remove products from the wishlist.
 - Keep wishlist items available between visits using local storage.
 
-### Customer Authentication
-- Register a customer account.
-- Log in and log out securely using Supabase Auth.
-- Display customer profile information.
-- Associate orders with the authenticated customer.
+### Customer Authentication and Account
 
-### Checkout and Orders
-- Enter shipping information.
-- Select a demo payment method.
-- Validate checkout details.
-- Display an order confirmation page.
+- Register, log in, and log out using Supabase Auth.
+- Display customer account information.
+- Associate customer orders with the authenticated account.
+- Keep customer order history isolated between accounts.
+
+### Checkout, Payments, and Orders
+
+- Enter and validate shipping information.
+- Complete the checkout flow.
+- Integrate Razorpay for payment processing.
+- Display an order confirmation after a successful order flow.
 - Save orders and order items in Supabase.
 - View previous orders in the customer account.
-- Refresh order history.
-- Keep order history isolated between customer accounts.
+- Refresh order history and view order details/status where available.
+
+### Product Reviews and Ratings
+
+- Allow customers to submit product feedback and ratings.
+- Display customer reviews and ratings on product pages.
+
+### Admin Dashboard
+
+- Provide a protected admin area for administrative tasks.
+- Manage product and order information.
+- View registered users through the user management page.
+- Search users and refresh the user list.
+- Promote eligible users to admin and demote admins to regular users.
+- Prevent an administrator from demoting their own account.
+- Prevent demotion of the last remaining administrator.
+- Perform privileged user-management operations through server-side authorization.
 
 ### User Experience
+
 - Responsive layouts for desktop, tablet, and mobile.
 - Toast notifications for user actions.
-- Loading and error states.
+- Loading, empty, and error states.
 - Form validation and helpful error messages.
 - Reusable components and shared React Context for application state.
 
@@ -71,26 +119,33 @@ A responsive e-commerce web application built with **Next.js, React, TypeScript,
 
 | Technology | Purpose |
 |---|---|
-| Next.js | Application framework and routing |
+| Next.js | Application framework, routing, and server-side functionality |
 | React | User interface and reusable components |
-| TypeScript | Type safety |
+| TypeScript | Type safety and maintainable application code |
 | Tailwind CSS | Responsive styling |
 | Ant Design | UI components, where used |
 | Supabase Auth | Customer authentication |
-| Supabase Database | Store customer orders and order items |
-| `@supabase/ssr` | Supabase client integration |
+| Supabase Database | Store application data, including orders and related records |
+| `@supabase/ssr` | Supabase client integration for server and browser environments |
+| Razorpay | Payment gateway integration |
 | React Context API | Shared cart, wishlist, and toast state |
-| Local Storage | Persist cart and wishlist data |
+| Local Storage | Persist cart and wishlist data in the browser |
 | Vercel | Application deployment |
 | Git and GitHub | Version control and source code hosting |
 
 ## 📂 Project Structure
 
+The following is a high-level overview of the main project areas. Some files and folders may differ as the application evolves.
+
 ```text
 amazon-product-listing-roj/
 ├── app/
 │   ├── account/
-│   ├── api-test/
+│   ├── admin/
+│   │   └── users/
+│   ├── api/
+│   │   └── admin/
+│   │       └── users/
 │   ├── cart/
 │   ├── checkout/
 │   ├── login/
@@ -109,6 +164,7 @@ amazon-product-listing-roj/
 │   └── products.ts
 ├── lib/
 │   ├── supabase/
+│   │   ├── admin.ts
 │   │   ├── client.ts
 │   │   └── server.ts
 │   ├── api.ts
@@ -116,21 +172,25 @@ amazon-product-listing-roj/
 ├── public/
 ├── screenshots/
 │   ├── homepage.png
+│   ├── product-details.png
 │   ├── cart.png
+│   ├── wishlist.png
 │   ├── checkout.png
-│   └── account.png
+│   ├── account.png
+│   ├── admin-dashboard.png
+│   ├── admin-users.png
+│   └── admin-management.png
 ├── package.json
 └── README.md
 ```
-
-*Note: The structure above summarizes the main project areas. Individual files may differ as the project evolves.*
 
 ## ⚙️ Run the Project Locally
 
 ### Prerequisites
 
-- Node.js and npm
-- A Supabase project
+- Node.js (LTS recommended) and npm.
+- A Supabase project.
+- Razorpay account and credentials if you want to test the payment integration.
 
 ### 1. Clone the repository
 
@@ -147,16 +207,16 @@ npm install
 
 ### 3. Configure environment variables
 
-Create a `.env.local` file in the project root:
+Create a `.env.local` file in the project root and add the environment variables required by the application. At minimum, the Supabase browser configuration uses:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
-Replace the example values with the corresponding values from your Supabase project.
+Add the server-only Supabase service-role key and the Razorpay credentials using the exact variable names expected by the application code. Keep all secret values on the server; never prefix secret keys with `NEXT_PUBLIC_`.
 
-**Security:** Never commit `.env.local`, passwords, or secret/service-role API keys to GitHub. The publishable key is intended for client-side use; protect database data with appropriate Supabase Row Level Security (RLS) policies.
+**Security:** Never commit `.env.local`, passwords, payment secrets, or the Supabase service-role key to GitHub. Configure production secrets in Vercel Project Settings. The service-role key bypasses normal Row Level Security protections, so it must only be used in trusted server-side code after authorization checks. Protect customer data with appropriate Supabase Row Level Security (RLS) policies.
 
 ### 4. Start the development server
 
@@ -178,66 +238,87 @@ npm run build
 npm run start
 ```
 
-## 🗄️ Database
+## 🗄️ Database and Backend
 
-The application uses Supabase to manage customer authentication and persist order information.
+The application uses Supabase for authentication and persistent application data.
 
-### Orders
+### Authentication
 
-Stores information such as:
-- Customer ID
-- Order status
-- Currency, subtotal, and total
-- Shipping details
-- Payment method and payment status
-- Order creation date
+Supabase Auth manages customer sign-up and login. Administrative routes should verify the signed-in user and their admin role on the server before performing privileged actions.
 
-### Order Items
+### Orders and Order Items
 
-Stores information such as:
-- Associated order ID
-- Product ID and name
-- Product image
-- Quantity
-- Unit price and line total
+Order records include information such as:
 
-Database access should be protected using suitable Row Level Security policies so customers can access only their own orders and related order items.
+- Customer ID and order status.
+- Currency, subtotal, and total.
+- Shipping details.
+- Payment method and payment status.
+- Order creation date.
+
+Order item records include information such as:
+
+- Associated order ID.
+- Product ID and product name.
+- Product image.
+- Quantity.
+- Unit price and line total.
+
+### Admin User Management
+
+The admin user-management functionality supports viewing and searching registered users and changing eligible user roles. Privileged operations are handled on the server and include safeguards against self-demotion and demoting the last administrator.
+
+### Database Security
+
+Configure suitable Supabase Row Level Security policies so customers can access only the records they are authorized to access. Never expose the Supabase service-role key in client-side code or public repository files.
+
+> **Setup note:** Use the database tables, columns, and policies defined by the current project implementation. This README does not replace the SQL/schema configuration required by your Supabase project.
 
 ## 🧪 Testing Checklist
 
-- [x] Browse products and view product details.
-- [x] Search, filter, sort, and paginate products.
-- [x] Add, update, and remove cart items.
-- [x] Manage wishlist items.
-- [x] Register, log in, and log out.
-- [x] Place a test order and view it in My Orders.
-- [x] Refresh order history.
-- [x] Verify customer order isolation.
-- [x] Check account and order cards on mobile.
-- [x] Build the project successfully.
+Use this checklist when testing the application. Mark an item complete only after verifying it in your current build and environment.
+
+- [ ] Browse products and view product details.
+- [ ] Search, filter, sort, and paginate products.
+- [ ] Add, update, and remove cart items.
+- [ ] Add and remove wishlist items; verify persistence after refresh.
+- [ ] Register, log in, and log out.
+- [ ] Complete checkout form validation.
+- [ ] Test the Razorpay payment flow in the configured test environment.
+- [ ] Verify successful payment/order confirmation and order persistence.
+- [ ] View and refresh customer order history.
+- [ ] Verify that customers cannot access another customer's orders.
+- [ ] Submit and display product reviews and ratings.
+- [ ] Verify that non-admin users cannot access admin pages or admin APIs.
+- [ ] Search and refresh the admin user list.
+- [ ] Test promoting a user and demoting an eligible admin.
+- [ ] Verify self-demotion and last-admin protections.
+- [ ] Check the application on desktop, tablet, and mobile layouts.
+- [ ] Run `npm run build` successfully.
 
 ## 🚀 Deployment
 
 The application is deployed using Vercel.
 
-**Live URL:** https://amazon-product-listing-roj.vercel.app/
-
-Production environment variables are configured in the Vercel project settings.
+- **Production URL:** [https://amazon-product-listing-roj.vercel.app/](https://amazon-product-listing-roj.vercel.app/)
+- Configure the required environment variables in the Vercel project settings.
+- Redeploy after changing production environment variables.
+- Keep server-only secrets, including service-role and payment credentials, out of client-side code and GitHub.
 
 ## 🔮 Future Improvements
 
-- Integrate a real payment gateway.
-- Add product reviews and ratings.
-- Add an admin dashboard for managing products and orders.
-- Improve automated testing.
+- Expand automated tests for customer, payment, and admin workflows.
 - Add order tracking and email notifications.
 - Improve accessibility and performance.
+- Improve monitoring and error reporting.
 
 ## 👨‍💻 Author
 
 **Rojan Augustine**
 
 - GitHub: [@rojanaugustine999](https://github.com/rojanaugustine999)
+- Project repository: [Amazon Product Listing App](https://github.com/rojanaugustine999/amazon-product-listing-roj)
+- Live project: [View Website](https://amazon-product-listing-roj.vercel.app/)
 
 ## 📄 License
 
